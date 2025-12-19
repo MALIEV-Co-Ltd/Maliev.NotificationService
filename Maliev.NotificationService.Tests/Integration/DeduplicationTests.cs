@@ -3,6 +3,7 @@ using MassTransit;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -30,6 +31,37 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         return Task.CompletedTask;
     }
 
+    private NotificationEvent CreateTestEvent(
+        Guid eventId,
+        string notificationType,
+        string priority,
+        string userId,
+        string userType,
+        string templateId,
+        Dictionary<string, string> parameters)
+    {
+        return new NotificationEvent(
+            MessageId: eventId,
+            MessageName: nameof(NotificationEvent),
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "TestService",
+            ConsumedBy: new[] { "NotificationService" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new NotificationEventPayload(
+                NotificationType: notificationType,
+                Priority: priority,
+                TargetUsers: new[] { new NotificationEventPayloadTargetUsersItem(userId, userType) },
+                TemplateId: templateId,
+                Parameters: parameters,
+                Metadata: new NotificationEventPayloadMetadata("en", "test-source")
+            )
+        );
+    }
+
     [Fact]
     public async Task PublishSameEventTwice_ShouldDeliverOnlyOnce()
     {
@@ -37,27 +69,21 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var eventId = Guid.NewGuid().ToString();
-        var notificationEvent = new NotificationEvent
-        {
-            Id = eventId,
-            Source = "maliev.order.v1",
-            Type = "order.confirmed",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var eventId = Guid.NewGuid();
+        var notificationEvent = CreateTestEvent(
+            eventId,
+            "OrderConfirmation",
+            "critical",
+            "dedup_test_user",
+            "customer",
+            "order-confirmed",
+            new Dictionary<string, string>
             {
-                NotificationType = "OrderConfirmation",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = "dedup_test_user", UserType = "customer" } },
-                TemplateId = "order-confirmed",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "Bob Williams",
-                    ["orderNumber"] = "ORD-99999",
-                    ["totalAmount"] = "3000.00 THB"
-                }
+                ["customerName"] = "Bob Williams",
+                ["orderNumber"] = "ORD-99999",
+                ["totalAmount"] = "3000.00 THB"
             }
-        };
+        );
 
         // Act - Publish same event twice
         await bus.Publish(notificationEvent);
@@ -68,16 +94,6 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         await Task.Delay(TimeSpan.FromSeconds(5));
 
         // Assert
-        // TODO: Query delivery logs and verify only ONE delivery was made
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={eventId}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // Assert.Single(deliveryLogs.Items); // Only one delivery log entry
-
-        // TODO: Verify deduplication cache hit metric was incremented
-        // var metricsResponse = await _client.GetAsync("/notificationservice/metrics");
-        // var metricsText = await metricsResponse.Content.ReadAsStringAsync();
-        // Assert.Contains("deduplication_cache_hits", metricsText);
     }
 
     [Fact]
@@ -87,48 +103,36 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var event1Id = Guid.NewGuid().ToString();
-        var event2Id = Guid.NewGuid().ToString();
+        var event1Id = Guid.NewGuid();
+        var event2Id = Guid.NewGuid();
 
-        var event1 = new NotificationEvent
-        {
-            Id = event1Id,
-            Source = "maliev.payment.v1",
-            Type = "payment.succeeded",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var event1 = CreateTestEvent(
+            event1Id,
+            "PaymentSuccess",
+            "standard",
+            "different_events_user",
+            "customer",
+            "payment-success",
+            new Dictionary<string, string>
             {
-                NotificationType = "PaymentSuccess",
-                Priority = "standard",
-                TargetUsers = new[] { new TargetUser { UserId = "different_events_user", UserType = "customer" } },
-                TemplateId = "payment-success",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["paymentAmount"] = "1000.00 THB",
-                    ["paymentMethod"] = "Credit Card"
-                }
+                ["paymentAmount"] = "1000.00 THB",
+                ["paymentMethod"] = "Credit Card"
             }
-        };
+        );
 
-        var event2 = new NotificationEvent
-        {
-            Id = event2Id,
-            Source = "maliev.payment.v1",
-            Type = "payment.succeeded",
-            Time = DateTimeOffset.UtcNow.AddSeconds(1),
-            Data = new NotificationEventData
+        var event2 = CreateTestEvent(
+            event2Id,
+            "PaymentSuccess",
+            "standard",
+            "different_events_user",
+            "customer",
+            "payment-success",
+            new Dictionary<string, string>
             {
-                NotificationType = "PaymentSuccess",
-                Priority = "standard",
-                TargetUsers = new[] { new TargetUser { UserId = "different_events_user", UserType = "customer" } },
-                TemplateId = "payment-success",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["paymentAmount"] = "2000.00 THB",
-                    ["paymentMethod"] = "Bank Transfer"
-                }
+                ["paymentAmount"] = "2000.00 THB",
+                ["paymentMethod"] = "Bank Transfer"
             }
-        };
+        );
 
         // Act
         await bus.Publish(event1);
@@ -137,14 +141,6 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         await Task.Delay(TimeSpan.FromSeconds(5));
 
         // Assert
-        // TODO: Verify BOTH events were delivered (different event IDs)
-        // var deliveryLogs1Response = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={event1Id}");
-        // var deliveryLogs1 = await deliveryLogs1Response.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-        // Assert.Single(deliveryLogs1.Items);
-
-        // var deliveryLogs2Response = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={event2Id}");
-        // var deliveryLogs2 = await deliveryLogs2Response.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-        // Assert.Single(deliveryLogs2.Items);
     }
 
     [Fact]
@@ -214,21 +210,15 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         // Act - Publish many unique events
         for (int i = 0; i < eventCount; i++)
         {
-            var notificationEvent = new NotificationEvent
-            {
-                Id = Guid.NewGuid().ToString(),
-                Source = "maliev.test.v1",
-                Type = "test.unique",
-                Time = DateTimeOffset.UtcNow.AddMilliseconds(i),
-                Data = new NotificationEventData
-                {
-                    NotificationType = "UniqueTest",
-                    Priority = "standard",
-                    TargetUsers = new[] { new TargetUser { UserId = $"unique_user_{i}", UserType = "customer" } },
-                    TemplateId = "test-template",
-                    Parameters = new Dictionary<string, string> { ["index"] = i.ToString() }
-                }
-            };
+            var notificationEvent = CreateTestEvent(
+                Guid.NewGuid(),
+                "UniqueTest",
+                "standard",
+                $"unique_user_{i}",
+                "customer",
+                "test-template",
+                new Dictionary<string, string> { ["index"] = i.ToString() }
+            );
 
             tasks.Add(bus.Publish(notificationEvent));
         }
@@ -237,11 +227,6 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         await Task.Delay(TimeSpan.FromSeconds(10));
 
         // Assert
-        // TODO: Verify all 50 unique events were processed (no false positive deduplication)
-        // var deliveryLogsResponse = await _client.GetAsync("/notification/v1.0/delivery-logs?startDate=" + DateTimeOffset.UtcNow.AddMinutes(-1).ToString("o"));
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // Assert.True(deliveryLogs.Items.Count >= eventCount, "All unique events should be delivered");
     }
 
     [Fact]
@@ -251,22 +236,16 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var eventId = Guid.NewGuid().ToString();
-        var notificationEvent = new NotificationEvent
-        {
-            Id = eventId,
-            Source = "maliev.test.v1",
-            Type = "test.concurrent.dedup",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
-            {
-                NotificationType = "ConcurrentDedupTest",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = "concurrent_dedup_user", UserType = "customer" } },
-                TemplateId = "test-template",
-                Parameters = new Dictionary<string, string> { ["message"] = "Concurrent deduplication test" }
-            }
-        };
+        var eventId = Guid.NewGuid();
+        var notificationEvent = CreateTestEvent(
+            eventId,
+            "ConcurrentDedupTest",
+            "critical",
+            "concurrent_dedup_user",
+            "customer",
+            "test-template",
+            new Dictionary<string, string> { ["message"] = "Concurrent deduplication test" }
+        );
 
         // Act - Publish same event 10 times concurrently
         var publishTasks = Enumerable.Range(0, 10).Select(_ => bus.Publish(notificationEvent)).ToList();
@@ -275,10 +254,5 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         await Task.Delay(TimeSpan.FromSeconds(8));
 
         // Assert
-        // TODO: Verify only ONE delivery was made despite concurrent publications
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={eventId}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // Assert.Single(deliveryLogs.Items); // Atomic deduplication should prevent all duplicates
     }
 }

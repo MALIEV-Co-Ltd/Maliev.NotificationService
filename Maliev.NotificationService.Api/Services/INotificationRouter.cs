@@ -1,4 +1,4 @@
-using Maliev.NotificationService.Api.Models.Events;
+using Maliev.MessagingContracts.Contracts;
 using Maliev.NotificationService.Api.Providers;
 
 namespace Maliev.NotificationService.Api.Services;

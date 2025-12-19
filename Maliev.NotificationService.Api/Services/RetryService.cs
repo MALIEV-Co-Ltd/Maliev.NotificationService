@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;
-using Maliev.NotificationService.Api.Models.Events;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Services;
 
@@ -39,9 +39,10 @@ public class RetryService : IRetryService
         string lastError,
         CancellationToken cancellationToken = default)
     {
+        var payload = notificationEvent.Payload;
         try
         {
-            var priority = notificationEvent.Data.Priority?.ToLowerInvariant() ?? "critical";
+            var priority = payload.Priority?.ToLowerInvariant() ?? "critical";
             var maxRetries = priority == "standard" ? MaxStandardRetries : MaxCriticalRetries;
 
             // Check if max retries exceeded
@@ -49,7 +50,7 @@ public class RetryService : IRetryService
             {
                 _logger.LogWarning(
                     "Max retries exceeded for event: EventId={EventId}, Attempts={Attempts}, Priority={Priority}",
-                    notificationEvent.Id,
+                    notificationEvent.MessageId,
                     attemptNumber,
                     priority);
 
@@ -63,7 +64,7 @@ public class RetryService : IRetryService
             // Create retry queue entry
             var retryEntry = new RetryQueueEntry
             {
-                EventId = notificationEvent.Id,
+                EventId = notificationEvent.MessageId.ToString(),
                 EventPayload = JsonSerializer.Serialize(notificationEvent),
                 AttemptNumber = attemptNumber,
                 ScheduledTime = scheduledTime,
@@ -81,7 +82,7 @@ public class RetryService : IRetryService
 
             _logger.LogInformation(
                 "Retry scheduled: EventId={EventId}, Attempt={Attempt}, ScheduledAt={ScheduledTime}, Delay={DelaySeconds}s",
-                notificationEvent.Id,
+                notificationEvent.MessageId,
                 attemptNumber,
                 scheduledTime,
                 delay.TotalSeconds);
@@ -93,7 +94,7 @@ public class RetryService : IRetryService
             _logger.LogError(
                 ex,
                 "Failed to schedule retry for EventId={EventId}, Attempt={Attempt}",
-                notificationEvent.Id,
+                notificationEvent.MessageId,
                 attemptNumber);
 
             throw;

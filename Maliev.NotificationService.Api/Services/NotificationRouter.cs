@@ -3,9 +3,9 @@ using System.Text.Json;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Api.Metrics;
 using Maliev.NotificationService.Api.Models.Enums;
-using Maliev.NotificationService.Api.Models.Events;
 using Maliev.NotificationService.Api.Providers;
 using Microsoft.EntityFrameworkCore;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Services;
 
@@ -47,9 +47,10 @@ public class NotificationRouter : INotificationRouter
         NotificationEvent notificationEvent,
         CancellationToken cancellationToken = default)
     {
+        var payload = notificationEvent.Payload;
         try
         {
-            var targetUser = notificationEvent.Data.TargetUsers.FirstOrDefault();
+            var targetUser = payload.TargetUsers.FirstOrDefault();
             if (targetUser == null)
             {
                 return RoutingResult.Failed("No target users specified");
@@ -62,14 +63,14 @@ public class NotificationRouter : INotificationRouter
             if (preference != null)
             {
                 var optOutCategories = JsonSerializer.Deserialize<List<string>>(preference.OptOutCategories) ?? new List<string>();
-                if (optOutCategories.Contains(notificationEvent.Data.NotificationType, StringComparer.OrdinalIgnoreCase))
+                if (optOutCategories.Contains(payload.NotificationType, StringComparer.OrdinalIgnoreCase))
                 {
                     _logger.LogInformation(
                         "User opted out of notification category: UserId={UserId}, Category={Category}",
                         targetUser.UserId,
-                        notificationEvent.Data.NotificationType);
+                        payload.NotificationType);
 
-                    return RoutingResult.Skipped($"User opted out of category: {notificationEvent.Data.NotificationType}");
+                    return RoutingResult.Skipped($"User opted out of category: {payload.NotificationType}");
                 }
             }
 
@@ -86,7 +87,7 @@ public class NotificationRouter : INotificationRouter
                 "Routing notification to primary channel: UserId={UserId}, Channel={Channel}, EventId={EventId}",
                 targetUser.UserId,
                 primaryChannel,
-                notificationEvent.Id);
+                notificationEvent.MessageId);
 
             // Look up channel binding for actual recipient identifier
             var channelBinding = await _dbContext.ChannelBindings
@@ -139,7 +140,7 @@ public class NotificationRouter : INotificationRouter
                 // Increment successful delivery counter
                 NotificationMetrics.NotificationsSent.Add(1,
                     new KeyValuePair<string, object?>("channel", primaryChannel),
-                    new KeyValuePair<string, object?>("priority", notificationEvent.Data.Priority ?? "critical"));
+                    new KeyValuePair<string, object?>("priority", payload.Priority ?? "critical"));
 
                 return RoutingResult.Successful(primaryChannel, deliveryResult);
             }
@@ -161,7 +162,7 @@ public class NotificationRouter : INotificationRouter
             {
                 _logger.LogWarning(
                     "Primary channel failed, attempting fallback: EventId={EventId}, PrimaryChannel={PrimaryChannel}",
-                    notificationEvent.Id,
+                    notificationEvent.MessageId,
                     primaryChannel);
 
                 // Increment fallback triggered counter
@@ -216,7 +217,7 @@ public class NotificationRouter : INotificationRouter
                         // Increment successful delivery counter for fallback
                         NotificationMetrics.NotificationsSent.Add(1,
                             new KeyValuePair<string, object?>("channel", fallbackChannel),
-                            new KeyValuePair<string, object?>("priority", notificationEvent.Data.Priority ?? "critical"));
+                            new KeyValuePair<string, object?>("priority", payload.Priority ?? "critical"));
 
                         return RoutingResult.Successful(fallbackChannel, fallbackResult, fallbackChannel);
                     }
@@ -243,7 +244,7 @@ public class NotificationRouter : INotificationRouter
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error routing notification: EventId={EventId}", notificationEvent.Id);
+            _logger.LogError(ex, "Error routing notification: EventId={EventId}", notificationEvent.MessageId);
             return RoutingResult.Failed($"Routing error: {ex.Message}", isRetryable: true);
         }
     }
@@ -318,23 +319,24 @@ public class NotificationRouter : INotificationRouter
         string channelType,
         CancellationToken cancellationToken)
     {
+        var payload = notificationEvent.Payload;
         // If no templateId provided, use simple parameter substitution
-        if (string.IsNullOrEmpty(notificationEvent.Data.TemplateId))
+        if (string.IsNullOrEmpty(payload.TemplateId))
         {
             _logger.LogDebug("No templateId provided, using simple rendering for EventId={EventId}",
-                notificationEvent.Id);
+                notificationEvent.MessageId);
             return RenderSimpleMessage(notificationEvent);
         }
 
         // Get language from metadata or default to "en"
-        var language = notificationEvent.Data.Metadata?.Language ?? "en";
+        var language = payload.Metadata?.Language ?? "en";
 
         // Normalize channel type to lowercase for comparison
         var channelTypeLower = channelType.ToLowerInvariant();
 
         // Query template from database
         var template = await _dbContext.NotificationTemplates
-            .Where(t => t.TemplateKey == notificationEvent.Data.TemplateId
+            .Where(t => t.TemplateKey == payload.TemplateId
                         && t.Language == language
                         && t.ChannelType == channelTypeLower)
             .OrderByDescending(t => t.Version)
@@ -344,7 +346,7 @@ public class NotificationRouter : INotificationRouter
         {
             _logger.LogWarning(
                 "Template not found: TemplateId={TemplateId}, Language={Language}, Channel={Channel}, falling back to simple rendering",
-                notificationEvent.Data.TemplateId,
+                payload.TemplateId,
                 language,
                 channelType);
             return RenderSimpleMessage(notificationEvent);
@@ -352,9 +354,22 @@ public class NotificationRouter : INotificationRouter
 
         try
         {
-            // Convert string dictionary to object dictionary for renderer
-            var parameters = notificationEvent.Data.Parameters
-                .ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
+            // Convert parameters to object dictionary for renderer
+            var parameters = new Dictionary<string, object>();
+            if (payload.Parameters is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in jsonElement.EnumerateObject())
+                {
+                    parameters[prop.Name] = prop.Value.ToString();
+                }
+            }
+            else if (payload.Parameters is IDictionary<string, string> dict)
+            {
+                foreach (var (key, value) in dict)
+                {
+                    parameters[key] = value;
+                }
+            }
 
             // Render template with parameters
             var renderedMessage = _templateRenderer.Render(
@@ -364,7 +379,7 @@ public class NotificationRouter : INotificationRouter
 
             _logger.LogDebug(
                 "Successfully rendered template: TemplateId={TemplateId}, Language={Language}, Channel={Channel}",
-                notificationEvent.Data.TemplateId,
+                payload.TemplateId,
                 language,
                 channelType);
 
@@ -374,7 +389,7 @@ public class NotificationRouter : INotificationRouter
         {
             _logger.LogError(ex,
                 "Template rendering failed: TemplateId={TemplateId}, Error={Error}",
-                notificationEvent.Data.TemplateId,
+                payload.TemplateId,
                 ex.Message);
             throw; // Re-throw to fail the notification delivery
         }
@@ -385,11 +400,15 @@ public class NotificationRouter : INotificationRouter
     /// </summary>
     private static string RenderSimpleMessage(NotificationEvent notificationEvent)
     {
-        var message = $"Notification: {notificationEvent.Data.NotificationType}\n";
+        var payload = notificationEvent.Payload;
+        var message = $"Notification: {payload.NotificationType}\n";
 
-        foreach (var (key, value) in notificationEvent.Data.Parameters)
+        if (payload.Parameters is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
         {
-            message += $"{key}: {value}\n";
+            foreach (var prop in jsonElement.EnumerateObject())
+            {
+                message += $"{prop.Name}: {prop.Value}\n";
+            }
         }
 
         return message;

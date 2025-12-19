@@ -1,10 +1,10 @@
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;
 using Maliev.NotificationService.Api.Models.Enums;
-using Maliev.NotificationService.Api.Models.Events;
 using Maliev.NotificationService.Api.Services;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Consumers;
 
@@ -40,65 +40,64 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
     public async Task Consume(ConsumeContext<NotificationEvent> context)
     {
         var notificationEvent = context.Message;
+        var payload = notificationEvent.Payload;
         var cancellationToken = context.CancellationToken;
 
         try
         {
             _logger.LogInformation(
                 "Processing notification event: EventId={EventId}, Type={Type}, Priority={Priority}, TargetUsers={UserCount}",
-                notificationEvent.Id,
-                notificationEvent.Type,
-                notificationEvent.Data.Priority,
-                notificationEvent.Data.TargetUsers.Count);
+                notificationEvent.MessageId,
+                payload.NotificationType,
+                payload.Priority,
+                payload.TargetUsers.Count);
 
             // Step 1: Check for duplicate events
             var isRetry = context.Headers.TryGetHeader("X-Is-Retry", out var isRetryObj) && isRetryObj?.ToString() == "true";
 
             if (isRetry)
             {
-                _logger.LogInformation("Processing retry event (skipping deduplication): EventId={EventId}", notificationEvent.Id);
+                _logger.LogInformation("Processing retry event (skipping deduplication): EventId={EventId}", notificationEvent.MessageId);
             }
             else
             {
                 var isDuplicate = await _deduplicationService.IsDuplicateAsync(
-                    notificationEvent.Id,
-                    notificationEvent.Time,
+                    notificationEvent.MessageId.ToString(),
+                    notificationEvent.OccurredAtUtc,
                     cancellationToken);
 
                 if (isDuplicate)
                 {
                     _logger.LogWarning(
                         "Duplicate notification event detected: EventId={EventId}. Skipping processing.",
-                        notificationEvent.Id);
+                        notificationEvent.MessageId);
                     return;
                 }
             }
 
             // Step 2: Process each target user
-            // NOTE: For large event batches exceeding memory limits, this should be enhanced
-            // with batching and IAsyncEnumerable processing (configurable page size, default 1000)
-            foreach (var targetUser in notificationEvent.Data.TargetUsers)
+            foreach (var targetUser in payload.TargetUsers)
             {
                 await ProcessUserNotificationAsync(notificationEvent, targetUser, cancellationToken);
             }
 
             _logger.LogInformation(
                 "Completed processing notification event: EventId={EventId}",
-                notificationEvent.Id);
+                notificationEvent.MessageId);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Unexpected error processing notification event: EventId={EventId}",
-                notificationEvent.Id);
+                notificationEvent.MessageId);
             throw;
         }
     }
 
     private async Task ProcessUserNotificationAsync(
         NotificationEvent notificationEvent,
-        TargetUser targetUser,
+        NotificationEventPayloadTargetUsersItem targetUser,
         CancellationToken cancellationToken)
     {
         try
@@ -106,7 +105,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             _logger.LogInformation(
                 "Routing notification for user: UserId={UserId}, EventId={EventId}",
                 targetUser.UserId,
-                notificationEvent.Id);
+                notificationEvent.MessageId);
 
             // Step 3: Route notification to appropriate channel
             var routingResult = await _notificationRouter.RouteAsync(
@@ -119,7 +118,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
                 // Success - notification delivered
                 _logger.LogInformation(
                     "Notification delivered successfully: EventId={EventId}, UserId={UserId}, Channel={Channel}",
-                    notificationEvent.Id,
+                    notificationEvent.MessageId,
                     targetUser.UserId,
                     routingResult.SelectedChannel);
 
@@ -135,7 +134,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
                 // Skipped (e.g., user opted out)
                 _logger.LogInformation(
                     "Notification skipped: EventId={EventId}, UserId={UserId}, Reason={Reason}",
-                    notificationEvent.Id,
+                    notificationEvent.MessageId,
                     targetUser.UserId,
                     routingResult.SkipReason);
 
@@ -172,7 +171,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
                 ex,
                 "Error processing notification for user: UserId={UserId}, EventId={EventId}",
                 targetUser.UserId,
-                notificationEvent.Id);
+                notificationEvent.MessageId);
 
             // Log the failure and move to dead letter queue
             await HandleNonRetryableFailureAsync(
@@ -186,22 +185,22 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
     private async Task HandleRetryableFailureAsync(
         NotificationEvent notificationEvent,
-        TargetUser targetUser,
+        NotificationEventPayloadTargetUsersItem targetUser,
         RoutingResult routingResult,
         CancellationToken cancellationToken)
     {
         // Determine current attempt number from retry queue or default to 1
-        var attemptNumber = await GetCurrentAttemptNumberAsync(notificationEvent.Id, cancellationToken);
+        var attemptNumber = await GetCurrentAttemptNumberAsync(notificationEvent.MessageId.ToString(), cancellationToken);
 
         // Get max retry attempts based on priority
-        var maxRetries = notificationEvent.Data.Priority.ToLowerInvariant() == "critical" ? 3 : 1;
+        var maxRetries = notificationEvent.Payload.Priority.ToLowerInvariant() == "critical" ? 3 : 1;
 
         if (attemptNumber >= maxRetries)
         {
             _logger.LogWarning(
                 "Max retry attempts ({MaxRetries}) exceeded for notification: EventId={EventId}, UserId={UserId}",
                 maxRetries,
-                notificationEvent.Id,
+                notificationEvent.MessageId,
                 targetUser.UserId);
 
             await HandleNonRetryableFailureAsync(
@@ -214,7 +213,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
         _logger.LogWarning(
             "Retryable failure for notification: EventId={EventId}, UserId={UserId}, Attempt={Attempt}, Error={Error}",
-            notificationEvent.Id,
+            notificationEvent.MessageId,
             targetUser.UserId,
             attemptNumber,
             routingResult.ErrorMessage);
@@ -239,7 +238,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
         {
             _logger.LogInformation(
                 "Retry scheduled: EventId={EventId}, Attempt={Attempt}, ScheduledTime={ScheduledTime}",
-                notificationEvent.Id,
+                notificationEvent.MessageId,
                 attemptNumber + 1,
                 retryResult.ScheduledTime);
         }
@@ -247,14 +246,14 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
         {
             _logger.LogWarning(
                 "Failed to schedule retry: EventId={EventId}, Reason={Reason}",
-                notificationEvent.Id,
+                notificationEvent.MessageId,
                 retryResult.Reason);
         }
     }
 
     private async Task HandleNonRetryableFailureAsync(
         NotificationEvent notificationEvent,
-        TargetUser targetUser,
+        NotificationEventPayloadTargetUsersItem targetUser,
         RoutingResult? routingResult,
         CancellationToken cancellationToken,
         Exception? exception = null)
@@ -265,18 +264,18 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
         _logger.LogError(
             "Non-retryable failure for notification: EventId={EventId}, UserId={UserId}, Error={Error}",
-            notificationEvent.Id,
+            notificationEvent.MessageId,
             targetUser.UserId,
             errorMessage);
 
         // Get all failure reasons from retry history
-        var failureReasons = await GetFailureReasonsAsync(notificationEvent.Id, cancellationToken);
+        var failureReasons = await GetFailureReasonsAsync(notificationEvent.MessageId.ToString(), cancellationToken);
         failureReasons.Add(errorMessage);
 
         // Create dead letter record
         var deadLetterRecord = new DeadLetterRecord
         {
-            EventId = notificationEvent.Id,
+            EventId = notificationEvent.MessageId.ToString(),
             EventPayload = System.Text.Json.JsonSerializer.Serialize(notificationEvent),
             FailureReasons = System.Text.Json.JsonSerializer.Serialize(failureReasons),
             TotalAttempts = failureReasons.Count,
@@ -302,16 +301,16 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
         _logger.LogWarning(
             "Notification moved to dead letter queue: EventId={EventId}, DeadLetterId={DeadLetterId}",
-            notificationEvent.Id,
+            notificationEvent.MessageId,
             deadLetterRecord.Id);
 
         // Trigger monitoring alert for critical notification failures
-        if (notificationEvent.Data.Priority?.Equals("critical", StringComparison.OrdinalIgnoreCase) == true)
+        if (notificationEvent.Payload.Priority?.Equals("critical", StringComparison.OrdinalIgnoreCase) == true)
         {
             await _alertingService.SendCriticalFailureAlertAsync(
-                notificationEvent.Id,
+                notificationEvent.MessageId.ToString(),
                 targetUser.UserId,
-                notificationEvent.Data.NotificationType,
+                notificationEvent.Payload.NotificationType,
                 deadLetterRecord.FailureReasons,
                 deadLetterRecord.TotalAttempts,
                 cancellationToken);
@@ -320,7 +319,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
     private async Task CreateDeliveryLogAsync(
         NotificationEvent notificationEvent,
-        TargetUser targetUser,
+        NotificationEventPayloadTargetUsersItem targetUser,
         RoutingResult routingResult,
         DeliveryStatus status,
         CancellationToken cancellationToken,
@@ -329,12 +328,12 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
     {
         var deliveryLog = new DeliveryLog
         {
-            EventId = notificationEvent.Id,
+            EventId = notificationEvent.MessageId.ToString(),
             UserId = targetUser.UserId,
             ChannelType = routingResult.SelectedChannel ?? "unknown",
             RecipientIdentifier = "unknown", // TODO: Implement obfuscation
             Status = status.ToString().ToLowerInvariant(),
-            MessageContent = TruncateMessage(notificationEvent.Data.TemplateId, 500),
+            MessageContent = TruncateMessage(notificationEvent.Payload.TemplateId, 500),
             ProviderResponse = routingResult.DeliveryResult?.ProviderResponse ?? additionalInfo,
             ProviderMessageId = routingResult.DeliveryResult?.MessageId,
             AttemptNumber = attemptNumber,

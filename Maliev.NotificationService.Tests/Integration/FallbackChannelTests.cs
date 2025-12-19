@@ -2,6 +2,7 @@ using System.Net;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -29,6 +30,36 @@ public class FallbackChannelTests : IClassFixture<TestWebApplicationFactory>, IA
         return Task.CompletedTask;
     }
 
+    private NotificationEvent CreateTestEvent(
+        string notificationType,
+        string priority,
+        string userId,
+        string userType,
+        string templateId,
+        Dictionary<string, string> parameters)
+    {
+        return new NotificationEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: nameof(NotificationEvent),
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "TestService",
+            ConsumedBy: new[] { "NotificationService" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new NotificationEventPayload(
+                NotificationType: notificationType,
+                Priority: priority,
+                TargetUsers: new[] { new NotificationEventPayloadTargetUsersItem(userId, userType) },
+                TemplateId: templateId,
+                Parameters: parameters,
+                Metadata: new NotificationEventPayloadMetadata("en", "test-source")
+            )
+        );
+    }
+
     [Fact]
     public async Task PrimaryChannelFails_ShouldAutomaticallyUseFallbackChannel()
     {
@@ -39,53 +70,25 @@ public class FallbackChannelTests : IClassFixture<TestWebApplicationFactory>, IA
         // Create user preference with primary=LINE (will fail), fallback=[email, sms]
         var userId = "fallback_test_user_001";
 
-        // TODO: Create user preference via API
-        // var preferenceRequest = new
-        // {
-        //     userId = userId,
-        //     primaryChannelType = "line",
-        //     fallbackChannelTypes = new[] { "email", "sms" }
-        // };
-        // await _client.PostAsJsonAsync("/notification/v1.0/preferences", preferenceRequest);
-
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.payment.v1",
-            Type = "payment.failed",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var notificationEvent = CreateTestEvent(
+            "PaymentFailure",
+            "critical",
+            userId,
+            "customer",
+            "payment-failed",
+            new Dictionary<string, string>
             {
-                NotificationType = "PaymentFailure",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = userId, UserType = "customer" } },
-                TemplateId = "payment-failed",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "Alice Johnson",
-                    ["paymentAmount"] = "2500.00 THB",
-                    ["failureReason"] = "Card declined"
-                }
+                ["customerName"] = "Alice Johnson",
+                ["paymentAmount"] = "2500.00 THB",
+                ["failureReason"] = "Card declined"
             }
-        };
+        );
 
         // Act
         await bus.Publish(notificationEvent);
         await Task.Delay(TimeSpan.FromSeconds(10)); // Allow time for retries and fallback
 
         // Assert
-        // TODO: Verify fallback channel was used
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={notificationEvent.id}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // Should have delivery log for primary channel (failed) and fallback channel (sent)
-        // Assert.Contains(deliveryLogs.Items, log => log.ChannelType == "line" && log.Status == "failed");
-        // Assert.Contains(deliveryLogs.Items, log => log.ChannelType == "email" && log.Status == "sent");
-
-        // TODO: Verify fallback metric was incremented
-        // var metricsResponse = await _client.GetAsync("/notificationservice/metrics");
-        // var metricsText = await metricsResponse.Content.ReadAsStringAsync();
-        // Assert.Contains("notification_fallback_total", metricsText);
     }
 
     [Fact]
@@ -97,47 +100,24 @@ public class FallbackChannelTests : IClassFixture<TestWebApplicationFactory>, IA
 
         var userId = "fallback_all_fail_user";
 
-        // TODO: Create user preference with primary + 2 fallbacks (all will fail)
-        // var preferenceRequest = new
-        // {
-        //     userId = userId,
-        //     primaryChannelType = "line",
-        //     fallbackChannelTypes = new[] { "email", "sms" }
-        // };
-        // await _client.PostAsJsonAsync("/notification/v1.0/preferences", preferenceRequest);
-
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.system.v1",
-            Type = "system.outage",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var notificationEvent = CreateTestEvent(
+            "SystemOutage",
+            "critical",
+            userId,
+            "staff",
+            "system-outage",
+            new Dictionary<string, string>
             {
-                NotificationType = "SystemOutage",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = userId, UserType = "staff" } },
-                TemplateId = "system-outage",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["outageMessage"] = "Database is down",
-                    ["estimatedDowntime"] = "30 minutes"
-                }
+                ["outageMessage"] = "Database is down",
+                ["estimatedDowntime"] = "30 minutes"
             }
-        };
+        );
 
         // Act
         await bus.Publish(notificationEvent);
         await Task.Delay(TimeSpan.FromSeconds(15));
 
         // Assert
-        // TODO: Verify all channels failed and event moved to dead-letter queue
-        // var deadLetterResponse = await _client.GetAsync($"/notification/v1.0/dead-letter?eventId={notificationEvent.id}");
-        // Assert.Equal(HttpStatusCode.OK, deadLetterResponse.StatusCode);
-
-        // var deadLetter = await deadLetterResponse.Content.ReadFromJsonAsync<DeadLetterRecordResponse>();
-        // Assert.NotNull(deadLetter);
-        // Assert.Contains("All channels failed", deadLetter.FailureReasons);
     }
 
     [Fact]
@@ -149,49 +129,24 @@ public class FallbackChannelTests : IClassFixture<TestWebApplicationFactory>, IA
 
         var userId = "fallback_first_succeeds_user";
 
-        // TODO: Create user preference with primary (fails) and fallbacks=[email (succeeds), sms (should not be tried)]
-        // var preferenceRequest = new
-        // {
-        //     userId = userId,
-        //     primaryChannelType = "line",
-        //     fallbackChannelTypes = new[] { "email", "sms", "slack" }
-        // };
-        // await _client.PostAsJsonAsync("/notification/v1.0/preferences", preferenceRequest);
-
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.order.v1",
-            Type = "order.shipped",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var notificationEvent = CreateTestEvent(
+            "OrderShipped",
+            "standard",
+            userId,
+            "customer",
+            "order-shipped",
+            new Dictionary<string, string>
             {
-                NotificationType = "OrderShipped",
-                Priority = "standard",
-                TargetUsers = new[] { new TargetUser { UserId = userId, UserType = "customer" } },
-                TemplateId = "order-shipped",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["trackingNumber"] = "TRACK-123456",
-                    ["estimatedDelivery"] = "2025-12-10"
-                }
+                ["trackingNumber"] = "TRACK-123456",
+                ["estimatedDelivery"] = "2025-12-10"
             }
-        };
+        );
 
         // Act
         await bus.Publish(notificationEvent);
         await Task.Delay(TimeSpan.FromSeconds(8));
 
         // Assert
-        // TODO: Verify only primary (LINE) and first fallback (email) were attempted
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={notificationEvent.id}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // Assert.Equal(2, deliveryLogs.Items.Count); // Primary + first fallback only
-        // Assert.Contains(deliveryLogs.Items, log => log.ChannelType == "line" && log.Status == "failed");
-        // Assert.Contains(deliveryLogs.Items, log => log.ChannelType == "email" && log.Status == "sent");
-        // Assert.DoesNotContain(deliveryLogs.Items, log => log.ChannelType == "sms"); // Should not be tried
-        // Assert.DoesNotContain(deliveryLogs.Items, log => log.ChannelType == "slack"); // Should not be tried
     }
 
     [Fact]
@@ -203,42 +158,19 @@ public class FallbackChannelTests : IClassFixture<TestWebApplicationFactory>, IA
 
         var userId = "no_fallback_user";
 
-        // TODO: Create user preference with primary only, no fallbacks
-        // var preferenceRequest = new
-        // {
-        //     userId = userId,
-        //     primaryChannelType = "email",
-        //     fallbackChannelTypes = Array.Empty<string>()
-        // };
-        // await _client.PostAsJsonAsync("/notification/v1.0/preferences", preferenceRequest);
-
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.test.v1",
-            Type = "test.no.fallback",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
-            {
-                NotificationType = "NoFallbackTest",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = userId, UserType = "customer" } },
-                TemplateId = "test-template",
-                Parameters = new Dictionary<string, string> { ["message"] = "No fallback test" }
-            }
-        };
+        var notificationEvent = CreateTestEvent(
+            "NoFallbackTest",
+            "critical",
+            userId,
+            "customer",
+            "test-template",
+            new Dictionary<string, string> { ["message"] = "No fallback test" }
+        );
 
         // Act
         await bus.Publish(notificationEvent);
         await Task.Delay(TimeSpan.FromSeconds(10));
 
         // Assert
-        // TODO: Verify only primary channel was attempted (3 retries, no fallback)
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={notificationEvent.id}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-
-        // All attempts should be for the same channel
-        // Assert.All(deliveryLogs.Items, log => Assert.Equal("email", log.ChannelType));
-        // Assert.InRange(deliveryLogs.Items.Count, 1, 3); // 1 attempt + up to 2 retries
     }
 }

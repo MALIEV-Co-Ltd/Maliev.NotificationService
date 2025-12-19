@@ -3,6 +3,7 @@ using System.Text.Json;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Maliev.MessagingContracts.Contracts;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -30,6 +31,36 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         return Task.CompletedTask;
     }
 
+    private NotificationEvent CreateTestEvent(
+        string notificationType,
+        string priority,
+        string userId,
+        string userType,
+        string templateId,
+        Dictionary<string, string> parameters)
+    {
+        return new NotificationEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: nameof(NotificationEvent),
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "TestService",
+            ConsumedBy: new[] { "NotificationService" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new NotificationEventPayload(
+                NotificationType: notificationType,
+                Priority: priority,
+                TargetUsers: new[] { new NotificationEventPayloadTargetUsersItem(userId, userType) },
+                TemplateId: templateId,
+                Parameters: parameters,
+                Metadata: new NotificationEventPayloadMetadata("en", "test-source")
+            )
+        );
+    }
+
     [Fact]
     public async Task PublishCriticalNotification_ShouldDeliverToPreferredChannel_Within30Seconds()
     {
@@ -37,36 +68,19 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.order.v1",
-            Type = "order.confirmed",
-            Time = DateTimeOffset.UtcNow,
-            DataContentType = "application/json",
-            SpecVersion = "1.0",
-            Data = new NotificationEventData
+        var notificationEvent = CreateTestEvent(
+            "OrderConfirmation",
+            "critical",
+            "test_user_001",
+            "customer",
+            "order-confirmed",
+            new Dictionary<string, string>
             {
-                NotificationType = "OrderConfirmation",
-                Priority = "critical",
-                TargetUsers = new[]
-                {
-                    new TargetUser { UserId = "test_user_001", UserType = "customer" }
-                },
-                TemplateId = "order-confirmed",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "John Doe",
-                    ["orderNumber"] = "ORD-12345",
-                    ["totalAmount"] = "1500.00 THB"
-                },
-                Metadata = new NotificationMetadata
-                {
-                    Language = "en",
-                    Source = "order-service"
-                }
+                ["customerName"] = "John Doe",
+                ["orderNumber"] = "ORD-12345",
+                ["totalAmount"] = "1500.00 THB"
             }
-        };
+        );
 
         var startTime = DateTimeOffset.UtcNow;
 
@@ -79,14 +93,6 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         // Assert
         var elapsedTime = DateTimeOffset.UtcNow - startTime;
         Assert.True(elapsedTime.TotalSeconds < 30, $"Delivery took {elapsedTime.TotalSeconds:F2}s, exceeding 30s SLA");
-
-        // TODO: Query delivery logs to verify notification was delivered
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={notificationEvent.id}");
-        // Assert.Equal(HttpStatusCode.OK, deliveryLogsResponse.StatusCode);
-
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-        // Assert.NotNull(deliveryLogs);
-        // Assert.Contains(deliveryLogs.Items, log => log.EventId == notificationEvent.id && log.Status == "sent");
     }
 
     [Fact]
@@ -96,31 +102,19 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var notificationEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.payment.v1",
-            Type = "payment.failed",
-            Time = DateTimeOffset.UtcNow,
-            DataContentType = "application/json",
-            SpecVersion = "1.0",
-            Data = new NotificationEventData
+        var notificationEvent = CreateTestEvent(
+            "PaymentFailure",
+            "critical",
+            "invalid_user_999",
+            "customer",
+            "payment-failed",
+            new Dictionary<string, string>
             {
-                NotificationType = "PaymentFailure",
-                Priority = "critical",
-                TargetUsers = new[]
-                {
-                    new TargetUser { UserId = "invalid_user_999", UserType = "customer" }
-                },
-                TemplateId = "payment-failed",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "Jane Smith",
-                    ["paymentAmount"] = "500.00 THB",
-                    ["failureReason"] = "Insufficient funds"
-                }
+                ["customerName"] = "Jane Smith",
+                ["paymentAmount"] = "500.00 THB",
+                ["failureReason"] = "Insufficient funds"
             }
-        };
+        );
 
         // Act
         await bus.Publish(notificationEvent);
@@ -130,9 +124,6 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
 
         // Assert
         // TODO: Verify delivery log shows failure
-        // var deliveryLogsResponse = await _client.GetAsync($"/notification/v1.0/delivery-logs?eventId={notificationEvent.id}");
-        // var deliveryLogs = await deliveryLogsResponse.Content.ReadFromJsonAsync<DeliveryLogResponse>();
-        // Assert.Contains(deliveryLogs.Items, log => log.Status == "failed");
     }
 
     [Fact]
@@ -148,25 +139,18 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         // Act
         for (int i = 0; i < eventCount; i++)
         {
-            var notificationEvent = new NotificationEvent
-            {
-                Id = Guid.NewGuid().ToString(),
-                Source = "maliev.system.v1",
-                Type = "system.alert",
-                Time = DateTimeOffset.UtcNow,
-                Data = new NotificationEventData
+            var notificationEvent = CreateTestEvent(
+                "SystemAlert",
+                "critical",
+                $"user_{i:D3}",
+                "staff",
+                "system-alert",
+                new Dictionary<string, string>
                 {
-                    NotificationType = "SystemAlert",
-                    Priority = "critical",
-                    TargetUsers = new[] { new TargetUser { UserId = $"user_{i:D3}", UserType = "staff" } },
-                    TemplateId = "system-alert",
-                    Parameters = new Dictionary<string, string>
-                    {
-                        ["alertMessage"] = $"Test alert {i}",
-                        ["severity"] = "high"
-                    }
+                    ["alertMessage"] = $"Test alert {i}",
+                    ["severity"] = "high"
                 }
-            };
+            );
 
             tasks.Add(bus.Publish(notificationEvent));
         }
@@ -178,7 +162,6 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
 
         // Assert
         // All messages should be processed without overwhelming the system
-        // TODO: Verify all delivery logs exist
         Assert.Equal(eventCount, tasks.Count);
     }
 
@@ -189,56 +172,32 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
 
-        var marketingEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.marketing.v1",
-            Type = "marketing.campaign",
-            Time = DateTimeOffset.UtcNow,
-            DataContentType = "application/json",
-            SpecVersion = "1.0",
-            Data = new NotificationEventData
+        var marketingEvent = CreateTestEvent(
+            "MarketingCampaign",
+            "standard",
+            "test_marketing_user_001",
+            "customer",
+            "marketing-campaign",
+            new Dictionary<string, string>
             {
-                NotificationType = "MarketingCampaign",
-                Priority = "standard", // Marketing notifications use standard priority
-                TargetUsers = new[]
-                {
-                    new TargetUser { UserId = "test_marketing_user_001", UserType = "customer" }
-                },
-                TemplateId = "marketing-campaign",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "Marketing Customer",
-                    ["campaignName"] = "Summer Sale 2025",
-                    ["discountCode"] = "SUMMER25"
-                },
-                Metadata = new NotificationMetadata
-                {
-                    Language = "en",
-                    Source = "marketing-service"
-                }
+                ["customerName"] = "Marketing Customer",
+                ["campaignName"] = "Summer Sale 2025",
+                ["discountCode"] = "SUMMER25"
             }
-        };
+        );
 
         var startTime = DateTimeOffset.UtcNow;
 
         // Act
         await bus.Publish(marketingEvent);
 
-        // Wait for async processing (standard queue has higher prefetch, processes faster in batches)
+        // Wait for async processing
         await Task.Delay(TimeSpan.FromSeconds(5));
 
         // Assert
         var elapsedTime = DateTimeOffset.UtcNow - startTime;
-
-        // Marketing notifications should still be processed within reasonable time
-        // but don't have the same strict 30s SLA as critical notifications
         Assert.True(elapsedTime.TotalSeconds < 60,
             $"Marketing notification took {elapsedTime.TotalSeconds:F2}s");
-
-        // Verify it was routed to standard queue (not critical queue)
-        // This is implicitly tested by the priority field being "standard"
-        // In production, this would be verified by checking queue metrics
     }
 
     [Fact]
@@ -250,60 +209,44 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
 
         var marketingBatchSize = 100;
         var marketingTasks = new List<Task>();
-        var criticalTask = new TaskCompletionSource<bool>();
 
         // Act - Publish large batch of marketing notifications
         for (int i = 0; i < marketingBatchSize; i++)
         {
-            var marketingEvent = new NotificationEvent
-            {
-                Id = Guid.NewGuid().ToString(),
-                Source = "maliev.marketing.v1",
-                Type = "marketing.newsletter",
-                Time = DateTimeOffset.UtcNow,
-                Data = new NotificationEventData
+            var marketingEvent = CreateTestEvent(
+                "Newsletter",
+                "standard",
+                $"marketing_user_{i:D3}",
+                "customer",
+                "newsletter",
+                new Dictionary<string, string>
                 {
-                    NotificationType = "Newsletter",
-                    Priority = "standard",
-                    TargetUsers = new[] { new TargetUser { UserId = $"marketing_user_{i:D3}", UserType = "customer" } },
-                    TemplateId = "newsletter",
-                    Parameters = new Dictionary<string, string>
-                    {
-                        ["customerName"] = $"Customer {i}",
-                        ["content"] = "Newsletter content"
-                    }
+                    ["customerName"] = $"Customer {i}",
+                    ["content"] = "Newsletter content"
                 }
-            };
+            );
 
             marketingTasks.Add(bus.Publish(marketingEvent));
         }
 
         await Task.WhenAll(marketingTasks);
 
-        // Now publish a critical notification - it should be processed promptly
-        // despite the marketing queue being busy
+        // Now publish a critical notification
         var criticalStartTime = DateTimeOffset.UtcNow;
 
-        var criticalEvent = new NotificationEvent
-        {
-            Id = Guid.NewGuid().ToString(),
-            Source = "maliev.payment.v1",
-            Type = "payment.failed",
-            Time = DateTimeOffset.UtcNow,
-            Data = new NotificationEventData
+        var criticalEvent = CreateTestEvent(
+            "PaymentFailure",
+            "critical",
+            "critical_user_001",
+            "customer",
+            "payment-failed",
+            new Dictionary<string, string>
             {
-                NotificationType = "PaymentFailure",
-                Priority = "critical",
-                TargetUsers = new[] { new TargetUser { UserId = "critical_user_001", UserType = "customer" } },
-                TemplateId = "payment-failed",
-                Parameters = new Dictionary<string, string>
-                {
-                    ["customerName"] = "Critical Customer",
-                    ["paymentAmount"] = "1000.00 THB",
-                    ["failureReason"] = "Card declined"
-                }
+                ["customerName"] = "Critical Customer",
+                ["paymentAmount"] = "1000.00 THB",
+                ["failureReason"] = "Card declined"
             }
-        };
+        );
 
         await bus.Publish(criticalEvent);
 
@@ -312,11 +255,8 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
 
         var criticalElapsedTime = DateTimeOffset.UtcNow - criticalStartTime;
 
-        // Assert - Critical notification should still be processed quickly
-        // even with marketing queue busy
+        // Assert
         Assert.True(criticalElapsedTime.TotalSeconds < 30,
             $"Critical notification was delayed by marketing queue: {criticalElapsedTime.TotalSeconds:F2}s");
-
-        // This demonstrates queue isolation: standard queue doesn't block critical queue
     }
 }
