@@ -3,7 +3,7 @@ using MassTransit;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Maliev.MessagingContracts.Contracts;
+using Maliev.MessagingContracts;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 

@@ -3,7 +3,7 @@ using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Maliev.MessagingContracts.Contracts;
+using Maliev.MessagingContracts;
 
 namespace Maliev.NotificationService.Api.Services;
 
