@@ -1,5 +1,5 @@
 using MassTransit;
-using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Generated;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Maliev.NotificationService.Data;

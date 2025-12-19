@@ -4,7 +4,7 @@ using Maliev.NotificationService.Api.Models.Enums;
 using Maliev.NotificationService.Api.Services;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Generated;
 
 namespace Maliev.NotificationService.Api.Consumers;
 
