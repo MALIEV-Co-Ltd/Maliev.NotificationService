@@ -58,9 +58,12 @@ nunit-*.xml
 
 # IDE
 .vscode/
+.vs/
 .idea/
 *.suo
 *.user
+*.userosscache
+*.sln.doccache
 
 # OS
 .DS_Store

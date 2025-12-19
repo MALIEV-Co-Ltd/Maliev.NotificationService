@@ -1,2 +1,0 @@
-[19/12/2025 7:38:26] Configured RabbitMQ: amqp://guest:FtzVresV3N5HdeuRfPsXfA@localhost:62655
-IsTesting: False

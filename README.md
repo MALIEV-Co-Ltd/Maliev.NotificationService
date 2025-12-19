@@ -28,12 +28,9 @@ The Notification Service is a production-ready, cloud-native microservice built 
 # 1. Clone and checkout
 git clone https://github.com/maliev/Maliev.NotificationService.git
 cd Maliev.NotificationService
-git checkout 001-notification-service
+git checkout develop
 
-# 2. Start infrastructure dependencies
-docker-compose up -d
-
-# 3. Run the service
+# 2. Run the service
 cd src/Maliev.NotificationService.Api
 dotnet run
 
@@ -381,8 +378,8 @@ Maliev.NotificationService/
 │       ├── data-model.md        # Entity relationship diagram
 │       ├── quickstart.md        # Developer quick start guide
 │       └── contracts/           # OpenAPI contracts
-├── docker-compose.yml           # Local development infrastructure
-├── Dockerfile                   # Multi-stage build definition
+├── Maliev.NotificationService.Api/
+│   ├── Dockerfile               # Multi-stage build definition
 └── nuget.config                 # NuGet package sources
 ```
 
@@ -404,8 +401,7 @@ See [Troubleshooting section](specs/001-notification-service/quickstart.md#troub
 ### Common Issues
 
 1. **Build Errors**: Ensure .NET 10 SDK is installed and NuGet credentials are configured
-2. **Database Connection**: Verify PostgreSQL container is running (`docker-compose ps`)
-3. **Missing Dependencies**: Run `dotnet restore` to restore NuGet packages
+2. **Missing Dependencies**: Run `dotnet restore` to restore NuGet packages
 4. **Test Failures**: Ensure Docker is running for Testcontainers integration tests
 
 ## Contributing
