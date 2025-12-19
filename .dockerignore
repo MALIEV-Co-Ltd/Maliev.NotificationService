@@ -1,0 +1,47 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+specs/
+.specify/
+.claude/
+.gemini/
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Tests
+**/*Tests/
+**/*Test/
+
+# Docker
+**/.dockerignore
+**/Dockerfile*
+**/docker-compose*
+
+# Environment
+.env*
+*.log
+*.logs
+
+# NuGet
+**/packages/
+**/*.nupkg
+
+# Misc
+**/node_modules/
+**/*.tmp

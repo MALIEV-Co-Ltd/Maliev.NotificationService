@@ -1,0 +1,735 @@
+openapi: 3.0.3
+info:
+  title: MALIEV Notification Service - Preferences API
+  description: |
+    REST API for managing user notification preferences and channel bindings.
+
+    **Authentication**: All endpoints require JWT bearer token with appropriate scopes.
+
+    **Base URL**: `https://api.maliev.com/notification-service/api/v1`
+
+    **Rate Limiting**: 100 requests per minute per user
+  version: 1.0.0
+  contact:
+    name: MALIEV API Support
+    email: api-support@maliev.com
+  license:
+    name: Proprietary
+    url: https://maliev.com/terms
+
+servers:
+  - url: https://api.maliev.com/notification-service/api/v1
+    description: Production
+  - url: https://staging.api.maliev.com/notification-service/api/v1
+    description: Staging
+  - url: http://localhost:8080/api/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Preferences
+    description: User notification preference management
+  - name: Channel Bindings
+    description: User-to-channel identifier mappings
+  - name: Templates
+    description: Notification template management (admin only)
+  - name: Delivery Logs
+    description: Delivery history and audit logs
+
+paths:
+  /preferences:
+    post:
+      tags: [Preferences]
+      summary: Create user notification preferences
+      operationId: createPreferences
+      security:
+        - BearerAuth: [preferences:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePreferenceRequest'
+      responses:
+        '201':
+          description: Preferences created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Preferences already exist for this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /preferences/{userId}:
+    get:
+      tags: [Preferences]
+      summary: Get user notification preferences
+      operationId: getPreferences
+      security:
+        - BearerAuth: [preferences:read]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User identifier
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Preferences]
+      summary: Update user notification preferences
+      operationId: updatePreferences
+      security:
+        - BearerAuth: [preferences:write]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferenceRequest'
+      responses:
+        '200':
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Preferences]
+      summary: Delete user notification preferences
+      operationId: deletePreferences
+      security:
+        - BearerAuth: [preferences:write]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Preferences deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /channel-bindings:
+    post:
+      tags: [Channel Bindings]
+      summary: Create channel binding
+      operationId: createChannelBinding
+      security:
+        - BearerAuth: [channel-bindings:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelBindingRequest'
+      responses:
+        '201':
+          description: Channel binding created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelBindingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Channel binding already exists for this user and channel type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /channel-bindings/{id}:
+    put:
+      tags: [Channel Bindings]
+      summary: Update channel binding
+      operationId: updateChannelBinding
+      security:
+        - BearerAuth: [channel-bindings:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChannelBindingRequest'
+      responses:
+        '200':
+          description: Channel binding updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelBindingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Channel Bindings]
+      summary: Delete channel binding
+      operationId: deleteChannelBinding
+      security:
+        - BearerAuth: [channel-bindings:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Channel binding deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /channel-bindings/user/{userId}:
+    get:
+      tags: [Channel Bindings]
+      summary: Get user's channel bindings
+      operationId: getUserChannelBindings
+      security:
+        - BearerAuth: [channel-bindings:read]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: isValid
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by validity status
+      responses:
+        '200':
+          description: Channel bindings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelBindingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /templates:
+    post:
+      tags: [Templates]
+      summary: Create notification template (Admin only)
+      operationId: createTemplate
+      security:
+        - BearerAuth: [templates:write, admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /templates/{id}:
+    get:
+      tags: [Templates]
+      summary: Get notification template
+      operationId: getTemplate
+      security:
+        - BearerAuth: [templates:read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Templates]
+      summary: Update notification template (Admin only)
+      operationId: updateTemplate
+      security:
+        - BearerAuth: [templates:write, admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /delivery-logs:
+    get:
+      tags: [Delivery Logs]
+      summary: Query delivery logs
+      operationId: queryDeliveryLogs
+      security:
+        - BearerAuth: [logs:read]
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+          description: Filter by user ID
+        - name: eventId
+          in: query
+          schema:
+            type: string
+          description: Filter by event ID
+        - name: channelType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ChannelType'
+          description: Filter by channel type
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DeliveryStatus'
+          description: Filter by delivery status
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start of time range (ISO 8601)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End of time range (ISO 8601)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Items per page
+      responses:
+        '200':
+          description: Delivery logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryLogPagedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from MALIEV Authentication Service
+
+  schemas:
+    ChannelType:
+      type: string
+      enum: [email, line, whatsapp, sms, slack, facebook, instagram]
+      description: Supported notification channels
+
+    DeliveryStatus:
+      type: string
+      enum: [sent, delivered, failed, pending, rate_limited]
+      description: Notification delivery status
+
+    UserType:
+      type: string
+      enum: [customer, staff, administrator]
+      description: User type for default channel resolution
+
+    CreatePreferenceRequest:
+      type: object
+      required: [userId, primaryChannelType]
+      properties:
+        userId:
+          type: string
+          description: User identifier
+        primaryChannelType:
+          $ref: '#/components/schemas/ChannelType'
+        fallbackChannelTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelType'
+          description: Ordered list of fallback channels
+        optOutCategories:
+          type: array
+          items:
+            type: string
+          description: Notification categories to opt out of
+          example: ["marketing", "promotions"]
+
+    UpdatePreferenceRequest:
+      type: object
+      properties:
+        primaryChannelType:
+          $ref: '#/components/schemas/ChannelType'
+        fallbackChannelTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelType'
+        optOutCategories:
+          type: array
+          items:
+            type: string
+
+    PreferenceResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        primaryChannelType:
+          $ref: '#/components/schemas/ChannelType'
+        fallbackChannelTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelType'
+        optOutCategories:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateChannelBindingRequest:
+      type: object
+      required: [userId, channelType, channelIdentifier]
+      properties:
+        userId:
+          type: string
+        channelType:
+          $ref: '#/components/schemas/ChannelType'
+        channelIdentifier:
+          type: string
+          description: Channel-specific identifier (email, phone, LINE ID, etc.)
+          example: "user@example.com"
+
+    UpdateChannelBindingRequest:
+      type: object
+      properties:
+        channelIdentifier:
+          type: string
+        isValid:
+          type: boolean
+        invalidatedReason:
+          type: string
+
+    ChannelBindingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        channelType:
+          $ref: '#/components/schemas/ChannelType'
+        channelIdentifier:
+          type: string
+          description: Obfuscated identifier for security
+          example: "u***@example.com"
+        isValid:
+          type: boolean
+        invalidatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        invalidatedReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTemplateRequest:
+      type: object
+      required: [templateKey, language, contentTemplate, parameters]
+      properties:
+        templateKey:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          example: "order-confirmed"
+        version:
+          type: integer
+          minimum: 1
+          default: 1
+        language:
+          type: string
+          pattern: '^[a-z]{2}$'
+          example: "en"
+        channelType:
+          $ref: '#/components/schemas/ChannelType'
+          nullable: true
+        contentTemplate:
+          type: string
+          example: "Hello {{customerName}}, your order {{orderNumber}} is confirmed!"
+        parameters:
+          type: array
+          items:
+            type: string
+          example: ["customerName", "orderNumber"]
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        contentTemplate:
+          type: string
+        parameters:
+          type: array
+          items:
+            type: string
+
+    TemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        templateKey:
+          type: string
+        version:
+          type: integer
+        language:
+          type: string
+        channelType:
+          $ref: '#/components/schemas/ChannelType'
+          nullable: true
+        contentTemplate:
+          type: string
+        parameters:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+
+    DeliveryLogResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+        userId:
+          type: string
+        channelType:
+          $ref: '#/components/schemas/ChannelType'
+        recipientIdentifier:
+          type: string
+          description: Obfuscated recipient identifier
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        messageContent:
+          type: string
+          description: Truncated message content (first 500 chars)
+          nullable: true
+        providerMessageId:
+          type: string
+          nullable: true
+        attemptNumber:
+          type: integer
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    DeliveryLogPagedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryLogResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        traceId:
+          type: string
+          description: Correlation ID for debugging
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "VALIDATION_ERROR"
+            message: "Invalid channel type provided"
+            details:
+              field: "primaryChannelType"
+              value: "invalid-channel"
+            traceId: "trace-abc123"
+
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "UNAUTHORIZED"
+            message: "Missing or invalid JWT token"
+            traceId: "trace-abc124"
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "FORBIDDEN"
+            message: "Admin role required for this operation"
+            traceId: "trace-abc125"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "NOT_FOUND"
+            message: "User preferences not found"
+            traceId: "trace-abc126"
