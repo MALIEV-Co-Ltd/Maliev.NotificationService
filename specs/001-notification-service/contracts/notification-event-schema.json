@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://maliev.com/schemas/notification-event/v1.json",
+  "title": "NotificationEvent",
+  "description": "CloudEvents-inspired schema for notification events published to RabbitMQ",
+  "type": "object",
+  "required": ["id", "source", "type", "time", "datacontenttype", "specversion", "data"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (UUID v4)"
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^maliev\\.[a-z]+\\.v[0-9]+$",
+      "description": "Event source service identifier (e.g., maliev.order.v1)",
+      "examples": ["maliev.order.v1", "maliev.payment.v1", "maliev.system.v1"]
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z]+\\.[a-z-]+$",
+      "description": "Event type (e.g., order.confirmed, payment.failed)",
+      "examples": ["order.confirmed", "payment.failed", "system.outage"]
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event creation timestamp (ISO 8601)"
+    },
+    "datacontenttype": {
+      "type": "string",
+      "enum": ["application/json"],
+      "description": "Content type of the data field"
+    },
+    "specversion": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "CloudEvents specification version"
+    },
+    "data": {
+      "type": "object",
+      "required": ["notificationType", "priority", "targetUsers", "templateId", "parameters"],
+      "properties": {
+        "notificationType": {
+          "type": "string",
+          "description": "High-level notification category",
+          "examples": ["OrderConfirmation", "PaymentFailure", "SystemAlert"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["critical", "standard"],
+          "description": "Notification priority level (determines routing and retry behavior)"
+        },
+        "targetUsers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["userId", "userType"],
+            "properties": {
+              "userId": {
+                "type": "string",
+                "description": "User identifier from User Service"
+              },
+              "userType": {
+                "type": "string",
+                "enum": ["customer", "staff", "administrator"],
+                "description": "User type for default channel resolution"
+              }
+            }
+          },
+          "description": "Array of target users for this notification"
+        },
+        "templateId": {
+          "type": "string",
+          "description": "Template key for message rendering (e.g., order-confirmed)",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Key-value pairs for template parameter substitution",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [
+            {
+              "customerName": "John Doe",
+              "orderNumber": "ORD-12345",
+              "totalAmount": "1500.00 THB"
+            }
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "language": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$",
+              "description": "Preferred language code (ISO 639-1)",
+              "default": "en",
+              "examples": ["en", "th"]
+            },
+            "source": {
+              "type": "string",
+              "description": "Originating service name",
+              "examples": ["order-service", "payment-service"]
+            },
+            "correlationId": {
+              "type": "string",
+              "description": "Correlation ID for distributed tracing"
+            }
+          },
+          "description": "Optional metadata for enhanced processing"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "source": "maliev.order.v1",
+      "type": "order.confirmed",
+      "time": "2025-12-05T10:30:00Z",
+      "datacontenttype": "application/json",
+      "specversion": "1.0",
+      "data": {
+        "notificationType": "OrderConfirmation",
+        "priority": "critical",
+        "targetUsers": [
+          {
+            "userId": "user123",
+            "userType": "customer"
+          }
+        ],
+        "templateId": "order-confirmed",
+        "parameters": {
+          "customerName": "John Doe",
+          "orderNumber": "ORD-12345",
+          "totalAmount": "1500.00 THB"
+        },
+        "metadata": {
+          "language": "th",
+          "source": "order-service",
+          "correlationId": "trace-abc123"
+        }
+      }
+    },
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "source": "maliev.payment.v1",
+      "type": "payment.failed",
+      "time": "2025-12-05T11:15:00Z",
+      "datacontenttype": "application/json",
+      "specversion": "1.0",
+      "data": {
+        "notificationType": "PaymentFailure",
+        "priority": "critical",
+        "targetUsers": [
+          {
+            "userId": "user456",
+            "userType": "customer"
+          }
+        ],
+        "templateId": "payment-failed",
+        "parameters": {
+          "customerName": "Jane Smith",
+          "orderNumber": "ORD-67890",
+          "failureReason": "Insufficient funds"
+        },
+        "metadata": {
+          "language": "en",
+          "source": "payment-service"
+        }
+      }
+    },
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440002",
+      "source": "maliev.system.v1",
+      "type": "system.outage",
+      "time": "2025-12-05T12:00:00Z",
+      "datacontenttype": "application/json",
+      "specversion": "1.0",
+      "data": {
+        "notificationType": "SystemAlert",
+        "priority": "critical",
+        "targetUsers": [
+          {
+            "userId": "admin1",
+            "userType": "administrator"
+          },
+          {
+            "userId": "admin2",
+            "userType": "administrator"
+          }
+        ],
+        "templateId": "system-outage",
+        "parameters": {
+          "serviceName": "Payment Service",
+          "outageStartTime": "2025-12-05T12:00:00Z",
+          "expectedResolutionTime": "2025-12-05T13:00:00Z"
+        },
+        "metadata": {
+          "language": "en",
+          "source": "monitoring-service"
+        }
+      }
+    }
+  ]
+}
