@@ -13,6 +13,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /source
 COPY ["Maliev.NotificationService.Api/Maliev.NotificationService.Api.csproj", "Maliev.NotificationService.Api/"]
+COPY ["Maliev.NotificationService.Data/Maliev.NotificationService.Data.csproj", "Maliev.NotificationService.Data/"]
 COPY ["nuget.config", "."]
 RUN --mount=type=secret,id=nuget_username \
   --mount=type=secret,id=nuget_password \
@@ -20,6 +21,7 @@ RUN --mount=type=secret,id=nuget_username \
   NUGET_PASSWORD=$(cat /run/secrets/nuget_password) \
   dotnet restore "./Maliev.NotificationService.Api/Maliev.NotificationService.Api.csproj"
 COPY Maliev.NotificationService.Api/ Maliev.NotificationService.Api/
+COPY Maliev.NotificationService.Data/ Maliev.NotificationService.Data/
 WORKDIR "/source/Maliev.NotificationService.Api"
 RUN dotnet build "./Maliev.NotificationService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
