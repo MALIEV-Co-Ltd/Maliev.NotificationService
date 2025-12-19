@@ -339,7 +339,7 @@ dotnet ef database update PreviousMigrationName
 
 ```bash
 # Build image
-docker build -t maliev-notification-service:latest .
+docker build -f Maliev.NotificationService.Api/Dockerfile -t maliev-notification-service:latest .
 
 # Run container
 docker run -d -p 8080:8080 \

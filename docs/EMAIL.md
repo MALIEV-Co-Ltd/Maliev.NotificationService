@@ -118,18 +118,7 @@ builder.Configuration.AddAzureKeyVault(
 // - Brevo--SenderName
 ```
 
-### Option 4: Using Docker Secrets
-
-```yaml
-# docker-compose.yml
-services:
-  notification-service:
-    image: maliev/notification-service
-    environment:
-      - Brevo__ApiKey=${BREVO_API_KEY}
-      - Brevo__SenderEmail=${BREVO_SENDER_EMAIL}
-      - Brevo__SenderName=${BREVO_SENDER_NAME}
-```
+### Option 4: Using Environment Variables
 
 ## Testing the Integration
 

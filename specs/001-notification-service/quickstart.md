@@ -45,83 +45,7 @@ cd Maliev.NotificationService
 git checkout 001-notification-service
 ```
 
-### 2. Start Infrastructure Dependencies
-
-Create `docker-compose.yml` in repository root:
-
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: notification-postgres
-    environment:
-      POSTGRES_USER: notification_user
-      POSTGRES_PASSWORD: notification_pass
-      POSTGRES_DB: notification_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U notification_user"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: notification-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: notification-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: notification_user
-      RABBITMQ_DEFAULT_PASS: notification_pass
-      RABBITMQ_DEFAULT_VHOST: maliev
-    ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-volumes:
-  postgres_data:
-  redis_data:
-  rabbitmq_data:
-```
-
-Start services:
-
-```bash
-docker-compose up -d
-```
-
-Verify services are healthy:
-
-```bash
-docker-compose ps
-```
-
-Expected output: All services should show "Up" status.
-
-### 3. Configure Application
+### 2. Configure Application
 
 Create `appsettings.Development.json` in `src/Maliev.NotificationService.Api/`:
 
@@ -275,7 +199,7 @@ Service will start on `http://localhost:8080`
 Build image:
 
 ```bash
-docker build -t maliev-notification-service:dev .
+docker build -f Maliev.NotificationService.Api/Dockerfile -t maliev-notification-service:dev .
 ```
 
 Run container:
@@ -505,62 +429,6 @@ curl "http://localhost:8080/api/v1/delivery-logs?userId=user123&startDate=2025-1
 
 ---
 
-## Troubleshooting
-
-### Common Issues
-
-#### 1. "Connection refused" errors
-
-**Problem**: Cannot connect to PostgreSQL, Redis, or RabbitMQ
-
-**Solution**:
-- Verify Docker containers are running: `docker-compose ps`
-- Check container logs: `docker-compose logs postgres` (or `redis`, `rabbitmq`)
-- Restart services: `docker-compose restart`
-
-#### 2. "Unable to restore NuGet packages from GitHub"
-
-**Problem**: Missing or invalid GitHub Packages credentials
-
-**Solution**:
-- Verify `NUGET_USERNAME` and `NUGET_PASSWORD` environment variables are set
-- Ensure GitHub Personal Access Token has `read:packages` scope
-- Clear NuGet cache: `dotnet nuget locals all --clear`
-- Retry restore: `dotnet restore --force`
-
-#### 3. Database migration errors
-
-**Problem**: `dotnet ef database update` fails
-
-**Solution**:
-- Verify PostgreSQL is running and accessible
-- Check connection string in `appsettings.Development.json`
-- Drop database and recreate:
-  ```bash
-  docker exec -it notification-postgres psql -U notification_user -d postgres -c "DROP DATABASE IF EXISTS notification_db; CREATE DATABASE notification_db;"
-  dotnet ef database update
-  ```
-
-#### 4. RabbitMQ consumer not receiving messages
-
-**Problem**: Messages published but not consumed
-
-**Solution**:
-- Verify exchange and routing key configuration in RabbitMQ Management UI
-- Check consumer logs for connection errors
-- Ensure queue is bound to exchange with correct routing key pattern
-- Verify message format matches event schema
-
-#### 5. External provider API errors
-
-**Problem**: Notification delivery fails with provider errors
-
-**Solution**:
-- Check provider credentials in `appsettings.Development.json`
-- Verify provider API keys are valid and not expired
-- Check provider API status pages (e.g., LINE Developers, Twilio Status)
-- Review provider response in delivery logs
-
 ### Viewing Logs
 
 **Application logs**:
@@ -568,47 +436,7 @@ curl "http://localhost:8080/api/v1/delivery-logs?userId=user123&startDate=2025-1
 dotnet run --verbosity detailed
 ```
 
-**Docker container logs**:
-```bash
-docker-compose logs -f notification-service
-```
-
-**PostgreSQL logs**:
-```bash
-docker-compose logs -f postgres
-```
-
-**RabbitMQ logs**:
-```bash
-docker-compose logs -f rabbitmq
-```
-
 ### Inspecting Data
-
-**PostgreSQL** (via psql):
-```bash
-docker exec -it notification-postgres psql -U notification_user -d notification_db
-
--- Query user preferences
-SELECT * FROM user_notification_preferences;
-
--- Query delivery logs
-SELECT * FROM delivery_logs ORDER BY created_at DESC LIMIT 10;
-
--- Query retry queue
-SELECT * FROM retry_queue_entries WHERE scheduled_time <= NOW();
-```
-
-**Redis** (via redis-cli):
-```bash
-docker exec -it notification-redis redis-cli
-
-# Check deduplication cache
-KEYS dedup:*
-
-# Get cache entry
-GET dedup:abc123...
-```
 
 **RabbitMQ Management UI**:
 - Open `http://localhost:15672`

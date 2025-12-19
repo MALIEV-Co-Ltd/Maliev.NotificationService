@@ -36,8 +36,7 @@ Based on plan.md: Single API project structure
 - [X] T008 [P] Create `.dockerignore` at repository root excluding build artifacts, IDE files, specs/, and test projects
 - [X] T009 [P] Create `appsettings.json` at `src/Maliev.NotificationService.Api/` with ConnectionStrings placeholders
 - [X] T010 [P] Create `appsettings.Development.json` at `src/Maliev.NotificationService.Api/` with localhost connection strings for PostgreSQL, Redis, RabbitMQ
-- [X] T011 Create `Dockerfile` at repository root following Docker Best Practices (multi-stage, built-in app user, BuildKit secrets, EXPOSE 8080)
-- [X] T012 [P] Create `docker-compose.yml` for local development with PostgreSQL, Redis, RabbitMQ services
+- [X] T011 Create `Dockerfile` in `Maliev.NotificationService.Api/` following Docker Best Practices (multi-stage, built-in app user, BuildKit secrets, EXPOSE 8080)
 
 ---
 
@@ -274,8 +273,7 @@ Based on plan.md: Single API project structure
 ### Documentation & Deployment
 
 - [ ] T113 [P] Create `README.md` at repository root with project overview, quick start link, architecture diagram
-- [ ] T114 [P] Validate Dockerfile builds successfully with BuildKit secrets: `docker build --secret id=nuget_username --secret id=nuget_password -t notification-service .`
-- [ ] T115 [P] Validate docker-compose.yml starts all services and service connects successfully
+- [ ] T114 [P] Validate Dockerfile builds successfully with BuildKit secrets: `docker build -f Maliev.NotificationService.Api/Dockerfile --secret id=nuget_username --secret id=nuget_password -t notification-service .`
 - [ ] T116 [P] Run all tests and verify >80% code coverage for business-critical logic: `dotnet test /p:CollectCoverage=true`
 - [ ] T117 [P] Validate OpenAPI documentation accessible at `/notificationservice/scalar/v1`
 - [ ] T118 [P] Validate health check endpoints: `/notificationservice/health`, `/notificationservice/liveness`, `/notificationservice/readiness`

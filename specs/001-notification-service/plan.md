@@ -180,7 +180,8 @@ Maliev.NotificationService/
 │       │       └── MappingExtensionsTests.cs
 │       └── TestHelpers/
 │           └── MockHttpMessageHandler.cs
-├── Dockerfile
+├── Maliev.NotificationService.Api/
+│   ├── Dockerfile
 ├── .dockerignore
 ├── nuget.config
 ├── .gitignore
