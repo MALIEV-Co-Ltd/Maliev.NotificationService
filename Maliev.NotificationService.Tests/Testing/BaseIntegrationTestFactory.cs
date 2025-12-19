@@ -72,12 +72,6 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             _rabbitmqContainer.StartAsync()
         );
 
-        // Set environment variables immediately after containers start
-        // This ensures they are available when Program.Main runs (which happens when .Server is accessed)
-        Environment.SetEnvironmentVariable($"ConnectionStrings__{DbConnectionStringName}", _postgresContainer.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer.GetConnectionString());
-
         // Wait for Redis to be ready
         using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
         {
@@ -96,7 +90,6 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         await _redisContainer.DisposeAsync();
         await _rabbitmqContainer.DisposeAsync();
         _testRsa.Dispose();
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null); // Cleanup
         await base.DisposeAsync();
     }
 
@@ -109,17 +102,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             InitializeAsync().GetAwaiter().GetResult();
         }
 
-        // Set environment variables BEFORE host builder processes configuration
-        // Note: Connection strings are now injected via ConfigureAppConfiguration in ConfigureWebHost
-        // to ensure they are available during host building causing Program.cs to see them.
-
-
-        // Export RSA public key for JWT validation
-        var rsaParams = _testRsa.ExportParameters(false);
-        Environment.SetEnvironmentVariable("JWT_PUBLIC_KEY_MODULUS", Convert.ToBase64String(rsaParams.Modulus!));
-        Environment.SetEnvironmentVariable("JWT_PUBLIC_KEY_EXPONENT", Convert.ToBase64String(rsaParams.Exponent!));
-
-        // Allow derived classes to set additional environment variables
+        // Allow derived classes to set environment variables if absolutely necessary
         ConfigureEnvironmentVariables();
 
         return base.CreateHost(builder);
@@ -127,6 +110,17 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Use UseSetting to provide connection strings early enough for Program.cs
+        builder.UseSetting($"ConnectionStrings:{DbConnectionStringName}", _postgresContainer.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
+        builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Testing");
+
+        // Export RSA public key for JWT validation
+        var rsaParams = _testRsa.ExportParameters(false);
+        builder.UseSetting("JWT_PUBLIC_KEY_MODULUS", Convert.ToBase64String(rsaParams.Modulus!));
+        builder.UseSetting("JWT_PUBLIC_KEY_EXPONENT", Convert.ToBase64String(rsaParams.Exponent!));
+
         builder.ConfigureTestServices(services =>
         {
             // Configure JWT Bearer authentication with test RSA key
