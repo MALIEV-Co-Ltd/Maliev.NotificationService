@@ -62,7 +62,7 @@ public class DeliveryLogsController : ControllerBase
         {
             // Self-service: Allow users to view their own logs
             var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead))
+            if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead.Replace("Permission:", "")))
             {
                 return Forbid();
             }
@@ -173,7 +173,7 @@ public class DeliveryLogsController : ControllerBase
 
             // Self-service logic
             var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (log.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead))
+            if (log.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead.Replace("Permission:", "")))
             {
                 return Forbid();
             }

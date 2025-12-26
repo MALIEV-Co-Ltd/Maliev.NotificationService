@@ -60,6 +60,9 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         var client = clientFactory.CreateClient();
         await client.GetAsync("/notification/liveness");
 
+        // Wait for background service to trigger (it has a 2s initial delay)
+        await Task.Delay(5000);
+
         // Assert
         // We might need a small delay because IHostedService starts in the background
         // but since we are awaiting the client call which ensures the host is started, it should be fine.

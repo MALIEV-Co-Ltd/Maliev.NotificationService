@@ -53,7 +53,7 @@ public class ChannelBindingsController : ControllerBase
     {
         // Self-service: Allow users to create bindings for themselves
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.BindingsCreate))
+        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.BindingsCreate.Replace("Permission:", "")))
         {
             return Forbid();
         }
@@ -126,7 +126,7 @@ public class ChannelBindingsController : ControllerBase
 
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsRead))
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsRead.Replace("Permission:", "")))
         {
             return Forbid();
         }
@@ -151,7 +151,7 @@ public class ChannelBindingsController : ControllerBase
     {
         // Self-service: Allow users to view their own bindings without explicit permission
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.BindingsListUser))
+        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.BindingsListUser.Replace("Permission:", "")))
         {
             return Forbid();
         }
@@ -208,7 +208,7 @@ public class ChannelBindingsController : ControllerBase
 
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsUpdate))
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsUpdate.Replace("Permission:", "")))
         {
             return Forbid();
         }
@@ -256,7 +256,7 @@ public class ChannelBindingsController : ControllerBase
 
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsDelete))
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsDelete.Replace("Permission:", "")))
         {
             return Forbid();
         }
