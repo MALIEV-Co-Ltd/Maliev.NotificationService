@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Api.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -21,8 +22,25 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
     public PreferencesApiTests(TestWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateAuthenticatedClient();
-        _adminClient = factory.CreateAuthenticatedClient(roles: new[] { "Administrator" });
+        _client = factory.CreateAuthenticatedClient(
+            permissions: new[]
+            {
+                NotificationPermissions.PreferencesRead,
+                NotificationPermissions.PreferencesUpdate,
+                NotificationPermissions.PreferencesDelete,
+                NotificationPermissions.PreferencesReadAny,
+                NotificationPermissions.BindingsCreate,
+                NotificationPermissions.BindingsRead,
+                NotificationPermissions.BindingsUpdate,
+                NotificationPermissions.BindingsDelete,
+                NotificationPermissions.BindingsListUser,
+                NotificationPermissions.TemplatesCreate,
+                NotificationPermissions.TemplatesRead,
+                NotificationPermissions.TemplatesUpdate
+            });
+        _adminClient = factory.CreateAuthenticatedClient(
+            roles: new[] { "Administrator" },
+            permissions: NotificationPermissions.All);
     }
 
     #region Preference Tests (T050)
@@ -40,7 +58,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/notification/v1.0/preferences", request);
+        var response = await _client.PostAsJsonAsync("/notification/v1/preferences", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -68,11 +86,11 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act - Create first preference
-        var firstResponse = await _client.PostAsJsonAsync("/notification/v1.0/preferences", request);
+        var firstResponse = await _client.PostAsJsonAsync("/notification/v1/preferences", request);
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
 
         // Act - Attempt to create duplicate
-        var secondResponse = await _client.PostAsJsonAsync("/notification/v1.0/preferences", request);
+        var secondResponse = await _client.PostAsJsonAsync("/notification/v1/preferences", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
@@ -89,7 +107,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/notification/v1.0/preferences", request);
+        var response = await _client.PostAsJsonAsync("/notification/v1/preferences", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -106,10 +124,10 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             PrimaryChannelType = "line",
             FallbackChannelTypes = new List<string> { "email" }
         };
-        await _client.PostAsJsonAsync("/notification/v1.0/preferences", createRequest);
+        await _client.PostAsJsonAsync("/notification/v1/preferences", createRequest);
 
         // Act
-        var response = await _client.GetAsync($"/notification/v1.0/preferences/{userId}");
+        var response = await _client.GetAsync($"/notification/v1/preferences/{userId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -127,7 +145,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         var userId = $"user-{Guid.NewGuid()}";
 
         // Act
-        var response = await _client.GetAsync($"/notification/v1.0/preferences/{userId}");
+        var response = await _client.GetAsync($"/notification/v1/preferences/{userId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -143,7 +161,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             UserId = userId,
             PrimaryChannelType = "email"
         };
-        await _client.PostAsJsonAsync("/notification/v1.0/preferences", createRequest);
+        await _client.PostAsJsonAsync("/notification/v1/preferences", createRequest);
 
         var updateRequest = new UpdatePreferenceRequest
         {
@@ -153,7 +171,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/notification/v1.0/preferences/{userId}", updateRequest);
+        var response = await _client.PutAsJsonAsync($"/notification/v1/preferences/{userId}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -177,7 +195,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/notification/v1.0/preferences/{userId}", updateRequest);
+        var response = await _client.PutAsJsonAsync($"/notification/v1/preferences/{userId}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -193,16 +211,16 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             UserId = userId,
             PrimaryChannelType = "email"
         };
-        await _client.PostAsJsonAsync("/notification/v1.0/preferences", createRequest);
+        await _client.PostAsJsonAsync("/notification/v1/preferences", createRequest);
 
         // Act
-        var response = await _client.DeleteAsync($"/notification/v1.0/preferences/{userId}");
+        var response = await _client.DeleteAsync($"/notification/v1/preferences/{userId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         // Verify deletion
-        var getResponse = await _client.GetAsync($"/notification/v1.0/preferences/{userId}");
+        var getResponse = await _client.GetAsync($"/notification/v1/preferences/{userId}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
@@ -213,7 +231,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         var userId = $"user-{Guid.NewGuid()}";
 
         // Act
-        var response = await _client.DeleteAsync($"/notification/v1.0/preferences/{userId}");
+        var response = await _client.DeleteAsync($"/notification/v1/preferences/{userId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -235,7 +253,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", request);
+        var response = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -261,11 +279,11 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act - Create first binding
-        var firstResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", request);
+        var firstResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", request);
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
 
         // Act - Attempt to create duplicate
-        var secondResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", request);
+        var secondResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
@@ -281,7 +299,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelType = "sms",
             ChannelIdentifier = "+66812345678"
         };
-        var createResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", createRequest);
+        var createResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<ChannelBindingResponse>();
         Assert.NotNull(created);
 
@@ -291,7 +309,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/notification/v1.0/channel-bindings/{created.Id}", updateRequest);
+        var response = await _client.PutAsJsonAsync($"/notification/v1/channel-bindings/{created.Id}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -311,7 +329,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelType = "whatsapp",
             ChannelIdentifier = "+66891234567"
         };
-        var createResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", createRequest);
+        var createResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<ChannelBindingResponse>();
         Assert.NotNull(created);
 
@@ -322,7 +340,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/notification/v1.0/channel-bindings/{created.Id}", updateRequest);
+        var response = await _client.PutAsJsonAsync($"/notification/v1/channel-bindings/{created.Id}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -344,12 +362,12 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelType = "slack",
             ChannelIdentifier = "U12345ABC"
         };
-        var createResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", createRequest);
+        var createResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<ChannelBindingResponse>();
         Assert.NotNull(created);
 
         // Act
-        var response = await _client.DeleteAsync($"/notification/v1.0/channel-bindings/{created.Id}");
+        var response = await _client.DeleteAsync($"/notification/v1/channel-bindings/{created.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -375,11 +393,11 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelIdentifier = "U1234567890"
         };
 
-        await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", emailBinding);
-        await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", lineBinding);
+        await _client.PostAsJsonAsync("/notification/v1/channel-bindings", emailBinding);
+        await _client.PostAsJsonAsync("/notification/v1/channel-bindings", lineBinding);
 
         // Act
-        var response = await _client.GetAsync($"/notification/v1.0/channel-bindings/user/{userId}");
+        var response = await _client.GetAsync($"/notification/v1/channel-bindings/user/{userId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -404,7 +422,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelType = "email",
             ChannelIdentifier = "valid@example.com"
         };
-        await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", validBinding);
+        await _client.PostAsJsonAsync("/notification/v1/channel-bindings", validBinding);
 
         // Create invalid binding
         var invalidBindingCreate = new CreateChannelBindingRequest
@@ -413,16 +431,16 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ChannelType = "sms",
             ChannelIdentifier = "+66123456789"
         };
-        var invalidResponse = await _client.PostAsJsonAsync("/notification/v1.0/channel-bindings", invalidBindingCreate);
+        var invalidResponse = await _client.PostAsJsonAsync("/notification/v1/channel-bindings", invalidBindingCreate);
         var invalidCreated = await invalidResponse.Content.ReadFromJsonAsync<ChannelBindingResponse>();
         Assert.NotNull(invalidCreated);
 
         // Invalidate the second binding
-        await _client.PutAsJsonAsync($"/notification/v1.0/channel-bindings/{invalidCreated.Id}",
+        await _client.PutAsJsonAsync($"/notification/v1/channel-bindings/{invalidCreated.Id}",
             new UpdateChannelBindingRequest { IsValid = false });
 
         // Act - Filter for valid only
-        var response = await _client.GetAsync($"/notification/v1.0/channel-bindings/user/{userId}?isValid=true");
+        var response = await _client.GetAsync($"/notification/v1/channel-bindings/user/{userId}?isValid=true");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -452,7 +470,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _adminClient.PostAsJsonAsync("/notification/v1.0/templates", request);
+        var response = await _adminClient.PostAsJsonAsync("/notification/v1/templates", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -482,11 +500,11 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act - Create first template
-        var firstResponse = await _adminClient.PostAsJsonAsync("/notification/v1.0/templates", request);
+        var firstResponse = await _adminClient.PostAsJsonAsync("/notification/v1/templates", request);
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
 
         // Act - Attempt to create duplicate
-        var secondResponse = await _adminClient.PostAsJsonAsync("/notification/v1.0/templates", request);
+        var secondResponse = await _adminClient.PostAsJsonAsync("/notification/v1/templates", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
@@ -505,12 +523,12 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ContentTemplate = "สวัสดี {{name}}",
             Parameters = new[] { "name" }
         };
-        var createResponse = await _adminClient.PostAsJsonAsync("/notification/v1.0/templates", createRequest);
+        var createResponse = await _adminClient.PostAsJsonAsync("/notification/v1/templates", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<TemplateResponse>();
         Assert.NotNull(created);
 
         // Act
-        var response = await _adminClient.GetAsync($"/notification/v1.0/templates/{created.Id}");
+        var response = await _adminClient.GetAsync($"/notification/v1/templates/{created.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -525,7 +543,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
     public async Task GetTemplate_NonExistentTemplate_ReturnsNotFound()
     {
         // Act
-        var response = await _adminClient.GetAsync($"/notification/v1.0/templates/{Guid.NewGuid()}");
+        var response = await _adminClient.GetAsync($"/notification/v1/templates/{Guid.NewGuid()}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -544,7 +562,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             ContentTemplate = "Old content {{param1}}",
             Parameters = new[] { "param1" }
         };
-        var createResponse = await _adminClient.PostAsJsonAsync("/notification/v1.0/templates", createRequest);
+        var createResponse = await _adminClient.PostAsJsonAsync("/notification/v1/templates", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<TemplateResponse>();
         Assert.NotNull(created);
 
@@ -555,7 +573,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _adminClient.PutAsJsonAsync($"/notification/v1.0/templates/{created.Id}", updateRequest);
+        var response = await _adminClient.PutAsJsonAsync($"/notification/v1/templates/{created.Id}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -577,7 +595,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         };
 
         // Act
-        var response = await _adminClient.PutAsJsonAsync($"/notification/v1.0/templates/{Guid.NewGuid()}", updateRequest);
+        var response = await _adminClient.PutAsJsonAsync($"/notification/v1/templates/{Guid.NewGuid()}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

@@ -1,15 +1,23 @@
+using Microsoft.Extensions.Caching.Memory;
 using Maliev.NotificationService.Api.Services;
 using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Unit.Services;
 
-public class TemplateRendererTests
+public class TemplateRendererTests : IDisposable
 {
     private readonly ITemplateRenderer _templateRenderer;
+    private readonly MemoryCache _memoryCache;
 
     public TemplateRendererTests()
     {
-        _templateRenderer = new TemplateRenderer();
+        _memoryCache = new MemoryCache(new MemoryCacheOptions());
+        _templateRenderer = new TemplateRenderer(_memoryCache);
+    }
+
+    public void Dispose()
+    {
+        _memoryCache.Dispose();
     }
 
     [Fact]

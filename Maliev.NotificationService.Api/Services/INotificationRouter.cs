@@ -14,10 +14,12 @@ public interface INotificationRouter
     /// Handles preference resolution, channel selection, and fallback logic.
     /// </summary>
     /// <param name="notificationEvent">The notification event to route</param>
+    /// <param name="targetUser">The specific target user to deliver to</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Routing result containing selected channel, delivery status, and any errors</returns>
     Task<RoutingResult> RouteAsync(
         NotificationEvent notificationEvent,
+        NotificationEventPayloadTargetUsersItem targetUser,
         CancellationToken cancellationToken = default);
 }
 

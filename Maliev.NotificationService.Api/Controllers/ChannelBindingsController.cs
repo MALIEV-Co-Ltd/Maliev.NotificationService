@@ -4,9 +4,12 @@ using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
 using Maliev.NotificationService.Api.Services;
+using Maliev.NotificationService.Api.Authorization;
+using Maliev.Aspire.ServiceDefaults.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Maliev.NotificationService.Api.Controllers;
 
@@ -14,7 +17,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing channel bindings
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/channel-bindings")]
 [Authorize]
 public class ChannelBindingsController : ControllerBase
@@ -40,6 +43,7 @@ public class ChannelBindingsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created channel binding response</returns>
     [HttpPost]
+    [RequirePermission(NotificationPermissions.BindingsCreate)]
     [ProducesResponseType(typeof(ChannelBindingResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -47,6 +51,13 @@ public class ChannelBindingsController : ControllerBase
         [FromBody] CreateChannelBindingRequest request,
         CancellationToken cancellationToken)
     {
+        // Self-service: Allow users to create bindings for themselves
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.BindingsCreate))
+        {
+            return Forbid();
+        }
+
         // Check if binding already exists for this user and channel type
         var existing = await _dbContext.ChannelBindings
             .FirstOrDefaultAsync(
@@ -93,6 +104,7 @@ public class ChannelBindingsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Channel binding response</returns>
     [HttpGet("{id}")]
+    [RequirePermission(NotificationPermissions.BindingsRead)]
     [ProducesResponseType(typeof(ChannelBindingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetChannelBinding(
@@ -110,6 +122,13 @@ public class ChannelBindingsController : ControllerBase
                 error = "BINDING_NOT_FOUND",
                 message = $"Channel binding not found with ID {id}"
             });
+        }
+
+        // Self-service logic
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsRead))
+        {
+            return Forbid();
         }
 
         var response = binding.ToResponse(_encryptionService);
@@ -130,6 +149,13 @@ public class ChannelBindingsController : ControllerBase
         [FromQuery] bool? isValid,
         CancellationToken cancellationToken)
     {
+        // Self-service: Allow users to view their own bindings without explicit permission
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.BindingsListUser))
+        {
+            return Forbid();
+        }
+
         var query = _dbContext.ChannelBindings
             .Where(b => b.UserId == userId);
 
@@ -158,6 +184,7 @@ public class ChannelBindingsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated channel binding response</returns>
     [HttpPut("{id}")]
+    [RequirePermission(NotificationPermissions.BindingsUpdate)]
     [ProducesResponseType(typeof(ChannelBindingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -177,6 +204,13 @@ public class ChannelBindingsController : ControllerBase
                 error = "BINDING_NOT_FOUND",
                 message = $"Channel binding not found with ID {id}"
             });
+        }
+
+        // Self-service logic
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsUpdate))
+        {
+            return Forbid();
         }
 
         // Apply updates with encryption
@@ -200,6 +234,7 @@ public class ChannelBindingsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>No content</returns>
     [HttpDelete("{id}")]
+    [RequirePermission(NotificationPermissions.BindingsDelete)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteChannelBinding(
@@ -217,6 +252,13 @@ public class ChannelBindingsController : ControllerBase
                 error = "BINDING_NOT_FOUND",
                 message = $"Channel binding not found with ID {id}"
             });
+        }
+
+        // Self-service logic
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (binding.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.BindingsDelete))
+        {
+            return Forbid();
         }
 
         _dbContext.ChannelBindings.Remove(binding);

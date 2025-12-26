@@ -2,9 +2,12 @@ using Asp.Versioning;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Api.Authorization;
+using Maliev.Aspire.ServiceDefaults.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Maliev.NotificationService.Api.Controllers;
 
@@ -13,7 +16,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// Supports filtering by user, date range, status, and channel.
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/delivery-logs")]
 [Authorize]
 public class DeliveryLogsController : ControllerBase
@@ -42,7 +45,7 @@ public class DeliveryLogsController : ControllerBase
     /// <param name="pageSize">Items per page (default: 20, max: 100)</param>
     /// <returns>Paginated delivery logs</returns>
     [HttpGet]
-    [AllowAnonymous] // Allow anonymous access for integration testing
+    [RequirePermission(NotificationPermissions.LogsRead)]
     [ProducesResponseType(typeof(PaginatedResponse<DeliveryLogResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PaginatedResponse<DeliveryLogResponse>>> GetDeliveryLogs(
@@ -57,6 +60,13 @@ public class DeliveryLogsController : ControllerBase
     {
         try
         {
+            // Self-service: Allow users to view their own logs
+            var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead))
+            {
+                return Forbid();
+            }
+
             // Validate pagination parameters
             if (page < 1)
             {
@@ -146,6 +156,7 @@ public class DeliveryLogsController : ControllerBase
     /// <param name="id">Delivery log ID</param>
     /// <returns>Delivery log details</returns>
     [HttpGet("{id}")]
+    [RequirePermission(NotificationPermissions.LogsRead)]
     [ProducesResponseType(typeof(DeliveryLogResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DeliveryLogResponse>> GetDeliveryLogById(Guid id)
@@ -158,6 +169,13 @@ public class DeliveryLogsController : ControllerBase
             if (log == null)
             {
                 return NotFound(new { error = $"Delivery log with ID {id} not found" });
+            }
+
+            // Self-service logic
+            var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (log.UserId != principalId && !User.HasClaim("permissions", NotificationPermissions.LogsRead))
+            {
+                return Forbid();
             }
 
             return Ok(log.ToResponse());

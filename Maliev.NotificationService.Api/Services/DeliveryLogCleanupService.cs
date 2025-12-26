@@ -77,24 +77,14 @@ public class DeliveryLogCleanupService : IHostedService, IDisposable
 
             var cutoffDate = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
 
-            // Find logs older than retention period
-            var oldLogs = await dbContext.DeliveryLogs
+            // Efficiently delete old logs using ExecuteDeleteAsync (no archival)
+            var deletedCount = await dbContext.DeliveryLogs
                 .Where(l => l.CreatedAt < cutoffDate)
-                .ToListAsync();
-
-            if (oldLogs.Count == 0)
-            {
-                _logger.LogInformation("No delivery logs to clean up");
-                return;
-            }
-
-            // Permanently delete old logs (no archival)
-            dbContext.DeliveryLogs.RemoveRange(oldLogs);
-            await dbContext.SaveChangesAsync();
+                .ExecuteDeleteAsync();
 
             _logger.LogInformation(
                 "Delivery log cleanup completed: Deleted {Count} logs older than {Days} days (cutoff: {CutoffDate})",
-                oldLogs.Count,
+                deletedCount,
                 RetentionDays,
                 cutoffDate);
         }

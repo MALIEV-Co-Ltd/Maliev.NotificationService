@@ -19,8 +19,8 @@ public static class PreferenceExtensions
         {
             UserId = preference.UserId,
             PrimaryChannelType = preference.PrimaryChannelType,
-            FallbackChannelTypes = JsonSerializer.Deserialize<List<string>>(preference.FallbackChannelTypes) ?? new List<string>(),
-            OptOutCategories = JsonSerializer.Deserialize<List<string>>(preference.OptOutCategories) ?? new List<string>(),
+            FallbackChannelTypes = preference.FallbackChannelTypes,
+            OptOutCategories = preference.OptOutCategories,
             CreatedAt = preference.CreatedAt,
             UpdatedAt = preference.UpdatedAt
         };
@@ -35,8 +35,8 @@ public static class PreferenceExtensions
         {
             UserId = request.UserId,
             PrimaryChannelType = request.PrimaryChannelType.ToLowerInvariant(),
-            FallbackChannelTypes = JsonSerializer.Serialize(request.FallbackChannelTypes.Select(c => c.ToLowerInvariant()).ToList()),
-            OptOutCategories = JsonSerializer.Serialize(request.OptOutCategories)
+            FallbackChannelTypes = request.FallbackChannelTypes.Select(c => c.ToLowerInvariant()).ToList(),
+            OptOutCategories = request.OptOutCategories
         };
     }
 
@@ -52,14 +52,12 @@ public static class PreferenceExtensions
 
         if (request.FallbackChannelTypes != null)
         {
-            preference.FallbackChannelTypes = JsonSerializer.Serialize(
-                request.FallbackChannelTypes.Select(c => c.ToLowerInvariant()).ToList());
+            preference.FallbackChannelTypes = request.FallbackChannelTypes.Select(c => c.ToLowerInvariant()).ToList();
         }
 
         if (request.OptOutCategories != null)
         {
-            preference.OptOutCategories = JsonSerializer.Serialize(request.OptOutCategories);
+            preference.OptOutCategories = request.OptOutCategories;
         }
     }
 }
-

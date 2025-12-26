@@ -68,3 +68,16 @@ nunit-*.xml
 # OS
 .DS_Store
 Thumbs.db
+
+.claude/settings.local.json
+.gemini/settings.local.json
+
+# Test Outputs
+*test-output.txt
+*_error.txt
+
+
+# Test Outputs
+*test-output.txt
+*_error.txt
+

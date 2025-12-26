@@ -45,25 +45,19 @@ public class NotificationRouter : INotificationRouter
 
     public async Task<RoutingResult> RouteAsync(
         NotificationEvent notificationEvent,
+        NotificationEventPayloadTargetUsersItem targetUser,
         CancellationToken cancellationToken = default)
     {
         var payload = notificationEvent.Payload;
         try
         {
-            var targetUser = payload.TargetUsers.FirstOrDefault();
-            if (targetUser == null)
-            {
-                return RoutingResult.Failed("No target users specified");
-            }
-
             // Check if user opted out of this notification category
             var preference = await _dbContext.UserNotificationPreferences
                 .FirstOrDefaultAsync(p => p.UserId == targetUser.UserId, cancellationToken);
 
             if (preference != null)
             {
-                var optOutCategories = JsonSerializer.Deserialize<List<string>>(preference.OptOutCategories) ?? new List<string>();
-                if (optOutCategories.Contains(payload.NotificationType, StringComparer.OrdinalIgnoreCase))
+                if (preference.OptOutCategories.Contains(payload.NotificationType, StringComparer.OrdinalIgnoreCase))
                 {
                     _logger.LogInformation(
                         "User opted out of notification category: UserId={UserId}, Category={Category}",
@@ -265,11 +259,8 @@ public class NotificationRouter : INotificationRouter
         if (preference != null)
         {
             // User has configured preferences
-            var fallbackChannels = JsonSerializer.Deserialize<List<string>>(preference.FallbackChannelTypes)
-                ?? new List<string>();
-
             var channels = new List<string> { preference.PrimaryChannelType };
-            channels.AddRange(fallbackChannels);
+            channels.AddRange(preference.FallbackChannelTypes);
 
             _logger.LogDebug(
                 "Using user preferences: UserId={UserId}, Channels={Channels}",

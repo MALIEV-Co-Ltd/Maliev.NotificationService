@@ -261,6 +261,33 @@ The service exposes OpenTelemetry metrics at `/notificationservice/metrics`:
 | `notification_retry_queue_depth` | Gauge | Current retry queue depth |
 | `notification_deduplication_cache_hits` | Counter | Duplicate events detected |
 | `notification_deduplication_cache_misses` | Counter | Unique events processed |
+| `notification_auth_denials_total` | Counter | Permission-based access denials |
+
+## Authorization
+
+The NotificationService uses a granular permission-based authorization system aligned with GCP standards.
+
+### Permissions
+
+The service defines 23 permissions spanning Templates, Notifications, Bindings, Preferences, and Logs. Examples:
+- `notification.templates.create`: Create notification templates
+- `notification.notifications.send`: Send notifications to users
+- `notification.bindings.list-user`: List user's channel bindings
+
+### Predefined Roles
+
+- `roles.notification.admin`: Full control.
+- `roles.notification.manager`: Manage templates and view logs.
+- `roles.notification.sender`: Send notifications and view status.
+- `roles.notification.user`: Manage own data (Self-service).
+
+### Self-Service Access
+
+Users are automatically granted access to their own data (preferences, bindings, logs) without requiring administrative permissions, provided the `sub` claim in their JWT matches the `userId` of the resource.
+
+### Feature Flag
+
+Enable/disable IAM integration via `Features:PermissionBasedAuthEnabled` in `appsettings.json`.
 
 ## Configuration
 

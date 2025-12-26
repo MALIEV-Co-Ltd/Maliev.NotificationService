@@ -19,8 +19,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user123",
             PrimaryChannelType = "email",
-            FallbackChannelTypes = JsonSerializer.Serialize(new List<string> { "sms", "slack" }),
-            OptOutCategories = JsonSerializer.Serialize(new List<string> { "marketing" }),
+            FallbackChannelTypes = new List<string> { "sms", "slack" },
+            OptOutCategories = new List<string> { "marketing" },
             CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -48,8 +48,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user123",
             PrimaryChannelType = "email",
-            FallbackChannelTypes = "[]",
-            OptOutCategories = "[]",
+            FallbackChannelTypes = new List<string>(),
+            OptOutCategories = new List<string>(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -81,17 +81,13 @@ public class PreferenceExtensionsTests
         Assert.Equal("user456", entity.UserId);
         Assert.Equal("line", entity.PrimaryChannelType); // Should be lowercase
 
-        var fallbackChannels = JsonSerializer.Deserialize<List<string>>(entity.FallbackChannelTypes);
-        Assert.NotNull(fallbackChannels);
-        Assert.Equal(2, fallbackChannels.Count);
-        Assert.Contains("email", fallbackChannels); // Should be lowercase
-        Assert.Contains("whatsapp", fallbackChannels); // Should be lowercase
+        Assert.Equal(2, entity.FallbackChannelTypes.Count);
+        Assert.Contains("email", entity.FallbackChannelTypes); // Should be lowercase
+        Assert.Contains("whatsapp", entity.FallbackChannelTypes); // Should be lowercase
 
-        var optOutCategories = JsonSerializer.Deserialize<List<string>>(entity.OptOutCategories);
-        Assert.NotNull(optOutCategories);
-        Assert.Equal(2, optOutCategories.Count);
-        Assert.Contains("promotions", optOutCategories);
-        Assert.Contains("newsletters", optOutCategories);
+        Assert.Equal(2, entity.OptOutCategories.Count);
+        Assert.Contains("promotions", entity.OptOutCategories);
+        Assert.Contains("newsletters", entity.OptOutCategories);
     }
 
     [Fact]
@@ -102,8 +98,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user789",
             PrimaryChannelType = "email",
-            FallbackChannelTypes = "[]",
-            OptOutCategories = "[]"
+            FallbackChannelTypes = new List<string>(),
+            OptOutCategories = new List<string>()
         };
 
         var updateRequest = new UpdatePreferenceRequest
@@ -126,8 +122,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user789",
             PrimaryChannelType = "email",
-            FallbackChannelTypes = JsonSerializer.Serialize(new List<string> { "sms" }),
-            OptOutCategories = "[]"
+            FallbackChannelTypes = new List<string> { "sms" },
+            OptOutCategories = new List<string>()
         };
 
         var updateRequest = new UpdatePreferenceRequest
@@ -139,11 +135,9 @@ public class PreferenceExtensionsTests
         entity.ApplyUpdate(updateRequest);
 
         // Assert
-        var fallbackChannels = JsonSerializer.Deserialize<List<string>>(entity.FallbackChannelTypes);
-        Assert.NotNull(fallbackChannels);
-        Assert.Equal(2, fallbackChannels.Count);
-        Assert.Contains("line", fallbackChannels); // Should be lowercase
-        Assert.Contains("slack", fallbackChannels); // Should be lowercase
+        Assert.Equal(2, entity.FallbackChannelTypes.Count);
+        Assert.Contains("line", entity.FallbackChannelTypes); // Should be lowercase
+        Assert.Contains("slack", entity.FallbackChannelTypes); // Should be lowercase
     }
 
     [Fact]
@@ -154,8 +148,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user789",
             PrimaryChannelType = "email",
-            FallbackChannelTypes = "[]",
-            OptOutCategories = JsonSerializer.Serialize(new List<string> { "marketing" })
+            FallbackChannelTypes = new List<string>(),
+            OptOutCategories = new List<string> { "marketing" }
         };
 
         var updateRequest = new UpdatePreferenceRequest
@@ -167,11 +161,9 @@ public class PreferenceExtensionsTests
         entity.ApplyUpdate(updateRequest);
 
         // Assert
-        var optOutCategories = JsonSerializer.Deserialize<List<string>>(entity.OptOutCategories);
-        Assert.NotNull(optOutCategories);
-        Assert.Equal(2, optOutCategories.Count);
-        Assert.Contains("promotions", optOutCategories);
-        Assert.Contains("surveys", optOutCategories);
+        Assert.Equal(2, entity.OptOutCategories.Count);
+        Assert.Contains("promotions", entity.OptOutCategories);
+        Assert.Contains("surveys", entity.OptOutCategories);
     }
 
     [Fact]
@@ -186,8 +178,8 @@ public class PreferenceExtensionsTests
         {
             UserId = "user789",
             PrimaryChannelType = originalPrimaryChannel,
-            FallbackChannelTypes = originalFallbackChannels,
-            OptOutCategories = originalOptOutCategories
+            FallbackChannelTypes = new List<string> { "sms" },
+            OptOutCategories = new List<string> { "marketing" }
         };
 
         var updateRequest = new UpdatePreferenceRequest
@@ -200,8 +192,10 @@ public class PreferenceExtensionsTests
 
         // Assert
         Assert.Equal(originalPrimaryChannel, entity.PrimaryChannelType);
-        Assert.Equal(originalFallbackChannels, entity.FallbackChannelTypes);
-        Assert.Equal(originalOptOutCategories, entity.OptOutCategories);
+        Assert.Single(entity.FallbackChannelTypes);
+        Assert.Equal("sms", entity.FallbackChannelTypes[0]);
+        Assert.Single(entity.OptOutCategories);
+        Assert.Equal("marketing", entity.OptOutCategories[0]);
     }
 }
 
