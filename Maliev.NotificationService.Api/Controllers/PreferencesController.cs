@@ -3,9 +3,12 @@ using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Api.Authorization;
+using Maliev.Aspire.ServiceDefaults.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Maliev.NotificationService.Api.Controllers;
 
@@ -13,7 +16,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing user notification preferences
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/preferences")]
 [Authorize]
 public class PreferencesController : ControllerBase
@@ -36,6 +39,7 @@ public class PreferencesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created preference response</returns>
     [HttpPost]
+    [RequirePermission(NotificationPermissions.PreferencesUpdate)]
     [ProducesResponseType(typeof(PreferenceResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -43,6 +47,13 @@ public class PreferencesController : ControllerBase
         [FromBody] CreatePreferenceRequest request,
         CancellationToken cancellationToken)
     {
+        // Self-service: Allow users to create preferences for themselves
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
+        {
+            return Forbid();
+        }
+
         // Check if preferences already exist
         var existing = await _dbContext.UserNotificationPreferences
             .FirstOrDefaultAsync(p => p.UserId == request.UserId, cancellationToken);
@@ -79,12 +90,20 @@ public class PreferencesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Preference response</returns>
     [HttpGet("{userId}")]
+    [RequirePermission(NotificationPermissions.PreferencesRead)]
     [ProducesResponseType(typeof(PreferenceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPreferences(
         string userId,
         CancellationToken cancellationToken)
     {
+        // Self-service: Allow users to view their own preferences
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.PreferencesReadAny))
+        {
+            return Forbid();
+        }
+
         var preference = await _dbContext.UserNotificationPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 
@@ -110,6 +129,7 @@ public class PreferencesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated preference response</returns>
     [HttpPut("{userId}")]
+    [RequirePermission(NotificationPermissions.PreferencesUpdate)]
     [ProducesResponseType(typeof(PreferenceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -118,6 +138,13 @@ public class PreferencesController : ControllerBase
         [FromBody] UpdatePreferenceRequest request,
         CancellationToken cancellationToken)
     {
+        // Self-service logic
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
+        {
+            return Forbid();
+        }
+
         var preference = await _dbContext.UserNotificationPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 
@@ -149,12 +176,20 @@ public class PreferencesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>No content</returns>
     [HttpDelete("{userId}")]
+    [RequirePermission(NotificationPermissions.PreferencesDelete)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeletePreferences(
         string userId,
         CancellationToken cancellationToken)
     {
+        // Self-service logic
+        var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesDelete))
+        {
+            return Forbid();
+        }
+
         var preference = await _dbContext.UserNotificationPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 

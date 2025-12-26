@@ -3,6 +3,8 @@ using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Api.Authorization;
+using Maliev.Aspire.ServiceDefaults.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +12,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Maliev.NotificationService.Api.Controllers;
 
 /// <summary>
-/// API controller for managing notification templates (admin only)
+/// API controller for managing notification templates
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/templates")]
-[Authorize(Roles = "Administrator")]
+[Authorize]
 public class TemplatesController : ControllerBase
 {
     private readonly NotificationDbContext _dbContext;
@@ -35,6 +37,7 @@ public class TemplatesController : ControllerBase
     /// <param name="request">Template creation request</param>
     /// <returns>Created template response</returns>
     [HttpPost]
+    [RequirePermission(NotificationPermissions.TemplatesCreate)]
     [ProducesResponseType(typeof(TemplateResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -78,6 +81,7 @@ public class TemplatesController : ControllerBase
     /// <param name="id">Template ID</param>
     /// <returns>Template response</returns>
     [HttpGet("{id}")]
+    [RequirePermission(NotificationPermissions.TemplatesRead)]
     [ProducesResponseType(typeof(TemplateResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetTemplate(Guid id)
@@ -93,12 +97,13 @@ public class TemplatesController : ControllerBase
     }
 
     /// <summary>
-    /// Updates an existing template (admin only)
+    /// Updates an existing template
     /// </summary>
     /// <param name="id">Template ID</param>
     /// <param name="request">Template update request</param>
     /// <returns>Updated template response</returns>
     [HttpPut("{id}")]
+    [RequirePermission(NotificationPermissions.TemplatesUpdate)]
     [ProducesResponseType(typeof(TemplateResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

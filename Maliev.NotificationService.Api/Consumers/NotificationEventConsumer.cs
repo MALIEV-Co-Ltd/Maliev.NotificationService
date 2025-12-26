@@ -110,6 +110,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             // Step 3: Route notification to appropriate channel
             var routingResult = await _notificationRouter.RouteAsync(
                 notificationEvent,
+                targetUser,
                 cancellationToken);
 
             // Step 4: Handle routing/delivery result
@@ -331,7 +332,9 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             EventId = notificationEvent.MessageId.ToString(),
             UserId = targetUser.UserId,
             ChannelType = routingResult.SelectedChannel ?? "unknown",
-            RecipientIdentifier = "unknown", // TODO: Implement obfuscation
+            RecipientIdentifier = routingResult.DeliveryResult?.MessageId != null 
+                ? $"msg-{routingResult.DeliveryResult.MessageId}" 
+                : "not-available",
             Status = status.ToString().ToLowerInvariant(),
             MessageContent = TruncateMessage(notificationEvent.Payload.TemplateId, 500),
             ProviderResponse = routingResult.DeliveryResult?.ProviderResponse ?? additionalInfo,

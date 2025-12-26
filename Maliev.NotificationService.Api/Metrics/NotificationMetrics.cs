@@ -27,6 +27,10 @@ public static class NotificationMetrics
         "notification_deduplication_cache_misses",
         description: "Number of unique events processed");
 
+    public static readonly Counter<long> AuthDenials = Meter.CreateCounter<long>(
+        "notification_auth_denials_total",
+        description: "Total number of permission-based access denials");
+
     // Histogram for latency
     public static readonly Histogram<double> DeliveryLatency = Meter.CreateHistogram<double>(
         "notification_delivery_latency_ms",

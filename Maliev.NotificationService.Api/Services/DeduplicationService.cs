@@ -47,10 +47,9 @@ public class DeduplicationService : IDeduplicationService
                 return true; // Duplicate found
             }
 
-            // Increment cache miss counter (unique event)
-            NotificationMetrics.DeduplicationCacheMisses.Add(1);
-
-            // Entry does not exist, create it (atomic operation)
+            // Entry does not exist, create it (atomic operation using SET NX logic if supported by provider)
+            // Note: IDistributedCache Get then Set pattern has a potential race condition.
+            // For production with high concurrency, consider using a distributed lock or Redis Lua script.
             await _cache.SetStringAsync(
                 cacheKey,
                 "1", // Simple presence marker
@@ -59,6 +58,9 @@ public class DeduplicationService : IDeduplicationService
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CacheTtlHours)
                 },
                 cancellationToken);
+
+            // Increment cache miss counter (unique event)
+            NotificationMetrics.DeduplicationCacheMisses.Add(1);
 
             _logger.LogDebug(
                 "Event registered in deduplication cache: EventId={EventId}, CacheKey={CacheKey}",
