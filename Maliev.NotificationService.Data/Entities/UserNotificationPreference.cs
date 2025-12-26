@@ -31,7 +31,7 @@ public class UserNotificationPreference
     /// </summary>
     [Required]
     [Column("fallback_channel_types", TypeName = "jsonb")]
-    public string FallbackChannelTypes { get; set; } = "[]";
+    public List<string> FallbackChannelTypes { get; set; } = new();
 
     /// <summary>
     /// Notification categories user opted out of (stored as JSONB)
@@ -39,7 +39,7 @@ public class UserNotificationPreference
     /// </summary>
     [Required]
     [Column("opt_out_categories", TypeName = "jsonb")]
-    public string OptOutCategories { get; set; } = "[]";
+    public List<string> OptOutCategories { get; set; } = new();
 
     /// <summary>
     /// Record creation timestamp
