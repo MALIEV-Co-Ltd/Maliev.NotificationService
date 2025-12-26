@@ -110,11 +110,13 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Use UseSetting to provide connection strings early enough for Program.cs
+        // Use UseSetting to provide configuration early enough for Program.cs
         builder.UseSetting($"ConnectionStrings:{DbConnectionStringName}", _postgresContainer.GetConnectionString());
         builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
         builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
         builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Testing");
+        builder.UseSetting("IAM:BaseUrl", "http://localhost:8080"); 
+        builder.UseSetting("Features:PermissionBasedAuthEnabled", "true"); // IMPORTANT: Enable permission based auth for tests
 
         // Export RSA public key for JWT validation
         var rsaParams = _testRsa.ExportParameters(false);
@@ -126,6 +128,9 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             // Configure JWT Bearer authentication with test RSA key
             services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
             {
+                // Disable claim type mapping to keep original claim names
+                options.MapInboundClaims = false;
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -135,7 +140,37 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
                     ValidIssuer = "test-issuer",
                     ValidAudience = "test-audience",
                     IssuerSigningKey = new RsaSecurityKey(_testRsa),
-                    ClockSkew = TimeSpan.Zero // No clock skew for tests
+                    ClockSkew = TimeSpan.Zero, // No clock skew for tests
+                    NameClaimType = JwtRegisteredClaimNames.Sub, // Use "sub" claim as name identifier
+                    RoleClaimType = "role" // Use "role" claim for roles
+                };
+
+                // Add event to transform claims after token validation
+                options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        if (context.Principal?.Identity is ClaimsIdentity identity)
+                        {
+                            // Add ClaimTypes.NameIdentifier claim from "sub"
+                            var subClaim = identity.FindFirst(JwtRegisteredClaimNames.Sub);
+                            if (subClaim != null && !identity.HasClaim(c => c.Type == ClaimTypes.NameIdentifier))
+                            {
+                                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, subClaim.Value));
+                            }
+
+                            // Add ClaimTypes.Role claims from "role"
+                            var roleClaims = identity.FindAll("role").ToList();
+                            foreach (var roleClaim in roleClaims)
+                            {
+                                if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == roleClaim.Value))
+                                {
+                                    identity.AddClaim(new Claim(ClaimTypes.Role, roleClaim.Value));
+                                }
+                            }
+                        }
+                        return Task.CompletedTask;
+                    }
                 };
             });
 
@@ -270,6 +305,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     public string CreateTestJwtToken(
         string userId = "test-user",
         string[]? roles = null,
+        string[]? permissions = null,
         Dictionary<string, string>? additionalClaims = null)
     {
         var claims = new List<Claim>
@@ -283,6 +319,14 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             foreach (var role in roles)
             {
                 claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+        }
+
+        if (permissions != null)
+        {
+            foreach (var permission in permissions)
+            {
+                claims.Add(new Claim("permissions", permission));
             }
         }
 
@@ -320,9 +364,13 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     /// <summary>
     /// Creates an HTTP client with authenticated user and specified roles.
     /// </summary>
-    public HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null)
+    public HttpClient CreateAuthenticatedClient(
+        string userId = "test-user",
+        string[]? roles = null,
+        string[]? permissions = null,
+        Dictionary<string, string>? additionalClaims = null)
     {
-        var token = CreateTestJwtToken(userId, roles);
+        var token = CreateTestJwtToken(userId, roles, permissions, additionalClaims);
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
         return client;
