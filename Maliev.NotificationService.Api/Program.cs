@@ -271,10 +271,10 @@ if (!app.Environment.IsEnvironment("Testing"))
     try
     {
         await app.MigrateDatabaseAsync<NotificationDbContext>();
-        
+
         using var scope = app.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-        
+
         await SeedDefaultTemplatesAsync(dbContext, logger);
         logger.LogInformation("Database seeding completed successfully");
     }

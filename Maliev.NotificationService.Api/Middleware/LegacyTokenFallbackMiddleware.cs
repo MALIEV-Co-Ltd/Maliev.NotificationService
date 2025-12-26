@@ -26,7 +26,7 @@ public class LegacyTokenFallbackMiddleware
             {
                 // Fallback to notification-user role for tokens without permission claims
                 var identity = (ClaimsIdentity)context.User.Identity;
-                
+
                 // Add permissions from the default user role
                 foreach (var permissionId in NotificationPredefinedRoles.User.PermissionIds)
                 {

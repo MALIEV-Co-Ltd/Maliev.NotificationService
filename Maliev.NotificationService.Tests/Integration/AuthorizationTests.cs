@@ -47,7 +47,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         {
             builder.UseSetting("Features:PermissionBasedAuthEnabled", "true");
             builder.UseSetting("IAM:BaseUrl", "http://iam-service:8080");
-            
+
             builder.ConfigureTestServices(services =>
             {
                 services.AddHttpClient("IAMService")
@@ -64,7 +64,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         // We might need a small delay because IHostedService starts in the background
         // but since we are awaiting the client call which ensures the host is started, it should be fine.
         // If it's flaky, we can add a retry loop for assertions. 
-        
+
         Assert.Single(permissionRequests);
         Assert.Single(roleRequests);
 
@@ -113,7 +113,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         // Arrange
         var aliceId = Guid.NewGuid();
         var bobId = Guid.NewGuid();
-        var client = _factory.CreateAuthenticatedClient(aliceId.ToString(), 
+        var client = _factory.CreateAuthenticatedClient(aliceId.ToString(),
             additionalClaims: new Dictionary<string, string> { { "permissions", NotificationPermissions.BindingsListUser } });
 
         // Act
@@ -148,9 +148,9 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task CreateTemplate_WithPermission_ShouldSucceed()
     {
         // Arrange
-        var client = _factory.CreateAuthenticatedClient(additionalClaims: new Dictionary<string, string> 
-        { 
-            { "permissions", NotificationPermissions.TemplatesCreate } 
+        var client = _factory.CreateAuthenticatedClient(additionalClaims: new Dictionary<string, string>
+        {
+            { "permissions", NotificationPermissions.TemplatesCreate }
         });
 
         // Act

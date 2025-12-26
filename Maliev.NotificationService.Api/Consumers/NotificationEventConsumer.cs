@@ -332,8 +332,8 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             EventId = notificationEvent.MessageId.ToString(),
             UserId = targetUser.UserId,
             ChannelType = routingResult.SelectedChannel ?? "unknown",
-            RecipientIdentifier = routingResult.DeliveryResult?.MessageId != null 
-                ? $"msg-{routingResult.DeliveryResult.MessageId}" 
+            RecipientIdentifier = routingResult.DeliveryResult?.MessageId != null
+                ? $"msg-{routingResult.DeliveryResult.MessageId}"
                 : "not-available",
             Status = status.ToString().ToLowerInvariant(),
             MessageContent = TruncateMessage(notificationEvent.Payload.TemplateId, 500),

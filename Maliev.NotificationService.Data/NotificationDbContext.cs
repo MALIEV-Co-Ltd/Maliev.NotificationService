@@ -58,7 +58,7 @@ public class NotificationDbContext : DbContext
         {
             entity.HasKey(e => e.UserId);
             entity.HasIndex(e => e.PrimaryChannelType); // For analytics queries
-            
+
             // Map lists to JSONB columns
             entity.Property(e => e.FallbackChannelTypes)
                 .HasColumnType("jsonb");
