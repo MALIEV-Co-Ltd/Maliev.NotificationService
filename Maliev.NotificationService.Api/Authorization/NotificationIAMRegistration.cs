@@ -20,8 +20,8 @@ public class NotificationIAMRegistration : IAMRegistrationService
     {
         return NotificationPermissions.All.Select(p => new PermissionRegistration
         {
-            PermissionId = p.Replace("Permission:", ""),
-            Description = $"Permission: {p.Replace("Permission:", "")}"
+            PermissionId = p,
+            Description = $"Permission: {p}"
         });
     }
 
@@ -31,7 +31,7 @@ public class NotificationIAMRegistration : IAMRegistrationService
         {
             RoleId = r.RoleId,
             Description = r.Description,
-            PermissionIds = r.PermissionIds.Select(p => p.Replace("Permission:", "")).ToList(),
+            PermissionIds = r.PermissionIds,
             IsCustom = r.IsCustom
         });
     }

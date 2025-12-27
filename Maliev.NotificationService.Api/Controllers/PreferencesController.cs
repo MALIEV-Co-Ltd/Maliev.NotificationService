@@ -49,7 +49,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service: Allow users to create preferences for themselves
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate.Replace("Permission:", "")))
+        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
         {
             return Forbid();
         }
@@ -99,7 +99,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service: Allow users to view their own preferences
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.PreferencesReadAny.Replace("Permission:", "")))
+        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.PreferencesReadAny))
         {
             return Forbid();
         }
@@ -140,7 +140,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate.Replace("Permission:", "")))
+        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
         {
             return Forbid();
         }
@@ -185,7 +185,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesDelete.Replace("Permission:", "")))
+        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesDelete))
         {
             return Forbid();
         }
