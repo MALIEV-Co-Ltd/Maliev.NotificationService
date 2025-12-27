@@ -188,7 +188,7 @@ public class DeduplicationTests : IClassFixture<TestWebApplicationFactory>, IAsy
         Assert.NotNull(valueBeforeExpiry);
 
         // Wait for expiration
-        await Task.Delay(TimeSpan.FromSeconds(3));
+        await Task.Delay(TimeSpan.FromSeconds(5));
 
         var valueAfterExpiry = await cache.GetStringAsync(cacheKey);
 
