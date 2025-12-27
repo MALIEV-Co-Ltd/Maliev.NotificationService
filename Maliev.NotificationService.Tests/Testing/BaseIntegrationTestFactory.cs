@@ -86,6 +86,16 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
     public new async Task DisposeAsync()
     {
+        // Explicitly stop MassTransit bus if it was started
+        if (Services != null)
+        {
+            var busControl = Services.GetService<IBusControl>();
+            if (busControl != null)
+            {
+                await busControl.StopAsync();
+            }
+        }
+
         await _postgresContainer.DisposeAsync();
         await _redisContainer.DisposeAsync();
         await _rabbitmqContainer.DisposeAsync();

@@ -20,14 +20,20 @@ public class NotificationIAMRegistration : IAMRegistrationService
     {
         return NotificationPermissions.All.Select(p => new PermissionRegistration
         {
-            PermissionId = p,
-            Description = $"Permission: {p}"
+            PermissionId = p.Replace("Permission:", ""),
+            Description = $"Permission: {p.Replace("Permission:", "")}"
         });
     }
 
     protected override IEnumerable<RoleRegistration> GetPredefinedRoles()
     {
-        return NotificationPredefinedRoles.All;
+        return NotificationPredefinedRoles.All.Select(r => new RoleRegistration
+        {
+            RoleId = r.RoleId,
+            Description = r.Description,
+            PermissionIds = r.PermissionIds.Select(p => p.Replace("Permission:", "")).ToList(),
+            IsCustom = r.IsCustom
+        });
     }
 
     public async Task RegisterWithCheckAsync(CancellationToken cancellationToken)
