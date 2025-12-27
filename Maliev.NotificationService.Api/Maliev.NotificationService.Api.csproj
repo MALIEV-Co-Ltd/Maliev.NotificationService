@@ -28,7 +28,7 @@
     <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
-    <PackageReference Include="sib_api_v3_sdk" Version="4.0.2" />
+    <PackageReference Include="brevo_csharp" Version="1.1.1" />
     <PackageReference Include="Twilio" Version="7.14.0" />
   </ItemGroup>
 

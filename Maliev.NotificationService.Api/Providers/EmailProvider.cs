@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using sib_api_v3_sdk.Api;
-using sib_api_v3_sdk.Client;
-using sib_api_v3_sdk.Model;
+using brevo_csharp.Api;
+using brevo_csharp.Client;
+using brevo_csharp.Model;
 using SystemTask = System.Threading.Tasks.Task;
 
 namespace Maliev.NotificationService.Api.Providers;
@@ -31,7 +31,7 @@ public partial class EmailProvider : IChannelProvider
         var apiKey = _configuration["Brevo:ApiKey"];
         if (!string.IsNullOrEmpty(apiKey))
         {
-            Configuration.Default.ApiKey.Add("api-key", apiKey);
+            brevo_csharp.Client.Configuration.Default.ApiKey.Add("api-key", apiKey);
             _emailApi = new TransactionalEmailsApi();
         }
         else
