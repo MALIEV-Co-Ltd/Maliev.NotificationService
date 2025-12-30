@@ -262,27 +262,16 @@ app.MapApiDocumentation(servicePrefix: "notification");
 app.MapControllers();
 
 // Run database migrations and seeding asynchronously (non-blocking)
-// Run database migrations on startup (skip in Testing environment)
-if (!app.Environment.IsEnvironment("Testing"))
-{
-    // Create logger instance within this scope
-    var logger = app.Services.GetRequiredService<ILogger<Program>>(); // Get logger from app services
+// Create logger instance within this scope
+var logger = app.Services.GetRequiredService<ILogger<Program>>(); // Get logger from app services
 
-    try
-    {
-        await app.MigrateDatabaseAsync<NotificationDbContext>();
+await app.MigrateDatabaseAsync<NotificationDbContext>();
 
-        using var scope = app.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+using var scope = app.Services.CreateScope();
+var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
 
-        await SeedDefaultTemplatesAsync(dbContext, logger);
-        logger.LogInformation("Database seeding completed successfully");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Error during database migration or seeding");
-    }
-}
+await SeedDefaultTemplatesAsync(dbContext, logger);
+logger.LogInformation("Database seeding completed successfully");
 
 // Initialize metrics (non-blocking)
 InitializeMetrics(app.Services);
