@@ -461,7 +461,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         // Arrange
         var request = new CreateTemplateRequest
         {
-            TemplateKey = "order-confirmed",
+            TemplateKey = $"order-confirmed-{Guid.NewGuid():N}",
             Version = 1,
             Language = "en",
             ChannelType = Models.Enums.ChannelType.Email,
@@ -491,7 +491,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         // Arrange
         var request = new CreateTemplateRequest
         {
-            TemplateKey = "duplicate-test",
+            TemplateKey = $"duplicate-test-{Guid.NewGuid():N}",
             Version = 1,
             Language = "en",
             ChannelType = Models.Enums.ChannelType.Email,
