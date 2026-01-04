@@ -238,7 +238,7 @@ builder.AddStandardOpenApi(
     description: "Centralized notification service for the Maliev platform. Handles multi-channel message delivery (Email, LINE, WhatsApp, SMS, Slack) with template management, priority routing, and automatic retry logic.");
 
 // NOTE: ServiceDefaults already configures:
-// - OpenAPI/Swagger via AddServiceDefaults()
+// - OpenAPI/Scalar via AddServiceDefaults()
 // - Health checks for PostgreSQL, Redis (via AddPostgresDbContext, AddRedisDistributedCache)
 // - OpenTelemetry metrics, tracing, logging
 // - Standard resilience patterns for HttpClients

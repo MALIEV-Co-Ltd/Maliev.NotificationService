@@ -33,7 +33,7 @@ public class DeduplicationService : IDeduplicationService
             var cacheKey = GenerateCacheKey(eventId, timestamp);
 
             // Check if entry already exists in cache
-            var existingValue = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            var existingValue = await _cache.GetAsync(cacheKey, cancellationToken);
 
             if (existingValue != null)
             {
@@ -47,12 +47,11 @@ public class DeduplicationService : IDeduplicationService
                 return true; // Duplicate found
             }
 
-            // Entry does not exist, create it (atomic operation using SET NX logic if supported by provider)
-            // Note: IDistributedCache Get then Set pattern has a potential race condition.
-            // For production with high concurrency, consider using a distributed lock or Redis Lua script.
-            await _cache.SetStringAsync(
+            // Entry does not exist, create it
+            var markerBytes = Encoding.UTF8.GetBytes("1"); // Simple presence marker
+            await _cache.SetAsync(
                 cacheKey,
-                "1", // Simple presence marker
+                markerBytes,
                 new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CacheTtlHours)

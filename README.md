@@ -49,7 +49,7 @@ For detailed setup instructions, see [Quick Start Guide](specs/001-notification-
 | **Runtime** | .NET 10 | Application platform |
 | **Framework** | ASP.NET Core | Web API framework |
 | **Messaging** | RabbitMQ + MassTransit | Event-driven architecture |
-| **Database** | PostgreSQL 16 | Primary data store |
+| **Database** | PostgreSQL 18 | Primary data store |
 | **Cache** | Redis 7 | Deduplication cache |
 | **Observability** | OpenTelemetry | Metrics, tracing, logging |
 | **API Docs** | Scalar (OpenAPI 3.1) | Interactive API documentation |
@@ -311,24 +311,24 @@ Credentials are loaded from Google Secret Manager in production:
 {
   "ExternalProviders": {
     "Line": {
-      "ChannelAccessToken": "<your-token-here>",
-      "ChannelSecret": "<your-token-here>"
+      "ChannelAccessToken": "YOUR_CHANNEL_ACCESS_TOKEN",
+      "ChannelSecret": "YOUR_CHANNEL_SECRET"
     },
     "WhatsApp": {
-      "AccessToken": "<your-token-here>",
-      "PhoneNumberId": "<your-token-here>"
+      "AccessToken": "YOUR_ACCESS_TOKEN",
+      "PhoneNumberId": "YOUR_PHONE_NUMBER_ID"
     },
     "SendGrid": {
-      "ApiKey": "<your-token-here>",
+      "ApiKey": "YOUR_API_KEY",
       "FromEmail": "noreply@maliev.com"
     },
     "Twilio": {
-      "AccountSid": "<your-token-here>",
-      "AuthToken": "<your-token-here>",
-      "PhoneNumber": "<your-token-here>"
+      "AccountSid": "YOUR_ACCOUNT_SID",
+      "AuthToken": "YOUR_AUTH_TOKEN",
+      "PhoneNumber": "YOUR_PHONE_NUMBER"
     },
     "Slack": {
-      "WebhookUrl": "<your-token-here>"
+      "WebhookUrl": "YOUR_WEBHOOK_URL"
     }
   }
 }
@@ -370,9 +370,9 @@ docker build -f Maliev.NotificationService.Api/Dockerfile -t maliev-notification
 
 # Run container
 docker run -d -p 8080:8080 \
-  -e ConnectionStrings__NotificationDbContext="<your-token-here>" \
-  -e ConnectionStrings__redis="<your-token-here>" \
-  -e ConnectionStrings__rabbitmq="<your-token-here>" \
+  -e ConnectionStrings__NotificationDbContext="YOUR_CONNECTION_STRING" \
+  -e ConnectionStrings__redis="YOUR_CONNECTION_STRING" \
+  -e ConnectionStrings__rabbitmq="YOUR_CONNECTION_STRING" \
   maliev-notification-service:latest
 ```
 
