@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Maliev.NotificationService.Api.Metrics;
-using Maliev.Aspire.ServiceDefaults.Caching;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace Maliev.NotificationService.Api.Services;
 
@@ -11,12 +11,12 @@ namespace Maliev.NotificationService.Api.Services;
 /// </summary>
 public class DeduplicationService : IDeduplicationService
 {
-    private readonly ICacheService _cache;
+    private readonly IDistributedCache _cache;
     private readonly ILogger<DeduplicationService> _logger;
     private const int CacheTtlHours = 24;
 
     public DeduplicationService(
-        ICacheService cache,
+        IDistributedCache cache,
         ILogger<DeduplicationService> logger)
     {
         _cache = cache;
@@ -33,7 +33,7 @@ public class DeduplicationService : IDeduplicationService
             var cacheKey = GenerateCacheKey(eventId, timestamp);
 
             // Check if entry already exists in cache
-            var existingValue = await _cache.GetAsync<string>(cacheKey, cancellationToken);
+            var existingValue = await _cache.GetAsync(cacheKey, cancellationToken);
 
             if (existingValue != null)
             {
@@ -48,10 +48,14 @@ public class DeduplicationService : IDeduplicationService
             }
 
             // Entry does not exist, create it
+            var markerBytes = Encoding.UTF8.GetBytes("1"); // Simple presence marker
             await _cache.SetAsync(
                 cacheKey,
-                "1", // Simple presence marker
-                TimeSpan.FromHours(CacheTtlHours),
+                markerBytes,
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CacheTtlHours)
+                },
                 cancellationToken);
 
             // Increment cache miss counter (unique event)
