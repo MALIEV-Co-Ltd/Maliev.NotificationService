@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Maliev.NotificationService.Api.Metrics;
-using Microsoft.Extensions.Caching.Distributed;
+using Maliev.Aspire.ServiceDefaults.Caching;
 
 namespace Maliev.NotificationService.Api.Services;
 
@@ -11,12 +11,12 @@ namespace Maliev.NotificationService.Api.Services;
 /// </summary>
 public class DeduplicationService : IDeduplicationService
 {
-    private readonly IDistributedCache _cache;
+    private readonly ICacheService _cache;
     private readonly ILogger<DeduplicationService> _logger;
     private const int CacheTtlHours = 24;
 
     public DeduplicationService(
-        IDistributedCache cache,
+        ICacheService cache,
         ILogger<DeduplicationService> logger)
     {
         _cache = cache;
@@ -33,7 +33,7 @@ public class DeduplicationService : IDeduplicationService
             var cacheKey = GenerateCacheKey(eventId, timestamp);
 
             // Check if entry already exists in cache
-            var existingValue = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            var existingValue = await _cache.GetAsync<string>(cacheKey, cancellationToken);
 
             if (existingValue != null)
             {
@@ -47,16 +47,11 @@ public class DeduplicationService : IDeduplicationService
                 return true; // Duplicate found
             }
 
-            // Entry does not exist, create it (atomic operation using SET NX logic if supported by provider)
-            // Note: IDistributedCache Get then Set pattern has a potential race condition.
-            // For production with high concurrency, consider using a distributed lock or Redis Lua script.
-            await _cache.SetStringAsync(
+            // Entry does not exist, create it
+            await _cache.SetAsync(
                 cacheKey,
                 "1", // Simple presence marker
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CacheTtlHours)
-                },
+                TimeSpan.FromHours(CacheTtlHours),
                 cancellationToken);
 
             // Increment cache miss counter (unique event)
