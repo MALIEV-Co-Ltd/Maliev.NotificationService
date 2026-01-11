@@ -17,10 +17,13 @@ builder.AddStandardMiddleware(options =>
     options.EnableRequestLogging = true;
 });
 
-builder.Services.AddMemoryCache();
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 1024;
+});
 
 // Add IAM Client
-builder.Services.AddIAMClient(builder.Configuration, "notification");
+builder.AddIAMServiceClient("notification");
 
 // Add custom metrics meter
 builder.AddServiceMeters("notifications-meter");
@@ -51,7 +54,8 @@ builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IAlertingServ
 
 // (4aa) Register background services
 builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.DeliveryLogCleanupService>();
-builder.Services.AddIAMRegistration<Maliev.NotificationService.Api.Authorization.NotificationIAMRegistration>();
+builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.RetryCleanupBackgroundService>();
+builder.Services.AddIAMRegistration<Maliev.NotificationService.Api.Authorization.NotificationIAMRegistration>("notification");
 
 // (4b) Register channel providers
 builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.EmailProvider>();
@@ -72,6 +76,12 @@ builder.Services.AddHttpClient("WhatsApp", client =>
     client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
 })
 .AddStandardResilienceHandler(); // From ServiceDefaults - includes retry, timeout, circuit breaker
+
+builder.Services.AddHttpClient("Line", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ApiBaseAddresses:LINE"] ?? "https://api.line.me/v2/bot");
+})
+.AddStandardResilienceHandler();
 
 builder.Services.AddHttpClient("Facebook", client =>
 {
@@ -375,7 +385,15 @@ static async Task SeedTemplateIfNotExistsAsync(
 
     if (!exists)
     {
-        dbContext.NotificationTemplates.Add(template);
+        try
+        {
+            dbContext.NotificationTemplates.Add(template);
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Ignore duplicate key errors from concurrent seeding
+        }
     }
 }
 
@@ -392,8 +410,8 @@ static void InitializeMetrics(IServiceProvider services)
             using var scope = services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
 
-            // Count all pending retry queue entries
-            var depth = dbContext.RetryQueueEntries.Count();
+            // Count all pending retry queue entries using AsNoTracking for efficiency
+            var depth = dbContext.RetryQueueEntries.AsNoTracking().Count();
 
             return depth;
         }
@@ -404,4 +422,3 @@ static void InitializeMetrics(IServiceProvider services)
         }
     });
 }
-
