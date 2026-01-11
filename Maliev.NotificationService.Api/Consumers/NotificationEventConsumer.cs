@@ -366,8 +366,17 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             CreatedAt = DateTimeOffset.UtcNow
         };
 
-        _dbContext.DeliveryLogs.Add(deliveryLog);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            _dbContext.DeliveryLogs.Add(deliveryLog);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Log warning for duplicate delivery log if it's a unique constraint violation
+            _logger.LogWarning(ex, "Failed to create delivery log for EventId={EventId}, UserId={UserId}. It may have been created concurrently.",
+                notificationEvent.MessageId, targetUser.UserId);
+        }
     }
 
     private async Task<int> GetCurrentAttemptNumberAsync(string eventId, CancellationToken cancellationToken)

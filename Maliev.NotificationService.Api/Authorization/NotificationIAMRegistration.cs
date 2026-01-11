@@ -36,7 +36,7 @@ public class NotificationIAMRegistration : IAMRegistrationService
             RoleId = r.RoleId,
             Description = r.Description,
             PermissionIds = r.Permissions.ToList(),
-            IsCustom = false
+            IsCustom = false // Predefined roles are not custom roles
         });
     }
 }
