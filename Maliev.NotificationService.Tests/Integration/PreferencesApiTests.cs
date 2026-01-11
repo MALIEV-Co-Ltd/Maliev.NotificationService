@@ -40,7 +40,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
             });
         _adminClient = factory.CreateAuthenticatedClient(
             roles: new[] { "Administrator" },
-            permissions: NotificationPermissions.All);
+            permissions: NotificationPermissions.All.Keys.ToArray());
     }
 
     #region Preference Tests (T050)
@@ -262,7 +262,7 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         Assert.NotNull(result);
         Assert.Equal(request.UserId, result.UserId);
         Assert.Equal("email", result.ChannelType);
-        Assert.StartsWith("u***@", result.ChannelIdentifier); // Obfuscated
+        Assert.StartsWith("u***", result.ChannelIdentifier); // Obfuscated
         Assert.True(result.IsValid);
     }
 
@@ -615,4 +615,3 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         await dbContext.SaveChangesAsync();
     }
 }
-

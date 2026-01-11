@@ -127,6 +127,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
         builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Testing");
         builder.UseSetting("IAM:BaseUrl", "http://localhost:8080");
+        builder.UseSetting("Jwt:SecurityKey", "test-secret-key-at-least-32-characters-long");
+        builder.UseSetting("Encryption:DataProtectionKey", "vS8+ZshUpXv/vS8+ZshUpXv/vS8+ZshUpXv/vS8+ZsY="); // Stable 32-byte key
         builder.UseSetting("Features:PermissionBasedAuthEnabled", "true"); // IMPORTANT: Enable permission based auth for tests
 
         // Export RSA public key for JWT validation
