@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 namespace Maliev.NotificationService.Api.Providers;
 
@@ -16,6 +17,7 @@ public partial class LineProvider : IChannelProvider
     private readonly ILogger<LineProvider> _logger;
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly PartitionedRateLimiter<string> _rateLimiter;
     private readonly string? _channelAccessToken;
     private readonly string _baseAddress;
     private readonly bool _isConfigured;
@@ -36,6 +38,18 @@ public partial class LineProvider : IChannelProvider
         _baseAddress = _configuration["ApiBaseAddresses:LINE"] ?? "https://api.line.me/v2/bot";
         _isConfigured = !string.IsNullOrEmpty(_channelAccessToken);
 
+        // Define rate limiter matches the policy in Program.cs
+        _rateLimiter = PartitionedRateLimiter.Create<string, string>(resource =>
+        {
+            return RateLimitPartition.GetTokenBucketLimiter("line", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 1000,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 10,
+                AutoReplenishment = true
+            });
+        });
+
         if (!_isConfigured)
         {
             _logger.LogWarning("LINE Channel Access Token not configured. LINE sending will be simulated.");
@@ -48,6 +62,14 @@ public partial class LineProvider : IChannelProvider
         Dictionary<string, string>? metadata,
         CancellationToken ct)
     {
+        // Enforce rate limiting
+        using var lease = await _rateLimiter.AcquireAsync("line", 1, ct);
+        if (!lease.IsAcquired)
+        {
+            _logger.LogWarning("Rate limit exceeded for LINE provider");
+            return DeliveryResult.RateLimited();
+        }
+
         try
         {
             // Validate LINE user ID format
@@ -98,7 +120,7 @@ public partial class LineProvider : IChannelProvider
                 }
             };
 
-            using var httpClient = _httpClientFactory.CreateClient();
+            using var httpClient = _httpClientFactory.CreateClient("Line");
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _channelAccessToken);
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -204,7 +226,7 @@ public partial class LineProvider : IChannelProvider
         try
         {
             // Check LINE Messaging API connectivity by getting bot info
-            using var httpClient = _httpClientFactory.CreateClient();
+            using var httpClient = _httpClientFactory.CreateClient("Line");
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _channelAccessToken);
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 

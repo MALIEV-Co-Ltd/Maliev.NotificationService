@@ -23,36 +23,10 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task Startup_ShouldRegisterPermissionsAndRoles_WhenEnabled()
     {
         // Arrange
-        var permissionRequests = new List<HttpRequestMessage>();
-        var roleRequests = new List<HttpRequestMessage>();
-
-        var mockHandler = new MockHttpMessageHandler((request, ct) =>
-        {
-            if (request.RequestUri?.PathAndQuery.Contains("/iam/v1/permissions/register") == true)
-            {
-                permissionRequests.Add(request);
-            }
-            else if (request.RequestUri?.PathAndQuery.Contains("/iam/v1/roles/register") == true)
-            {
-                roleRequests.Add(request);
-            }
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"success\":true}")
-            });
-        });
-
         using var clientFactory = _factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Features:PermissionBasedAuthEnabled", "true");
             builder.UseSetting("IAM:BaseUrl", "http://iam-service:8080");
-
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddHttpClient("IAMService")
-                    .ConfigurePrimaryHttpMessageHandler(() => mockHandler);
-            });
         });
 
         // Act
@@ -60,24 +34,18 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         var client = clientFactory.CreateClient();
         await client.GetAsync("/notification/liveness");
 
-        // Wait for background service to trigger (it has a 2s initial delay)
-        await Task.Delay(5000);
+        // Wait for background registration via MassTransit harness
+        var harness = clientFactory.Services.GetRequiredService<MassTransit.Testing.ITestHarness>();
 
         // Assert
-        // We might need a small delay because IHostedService starts in the background
-        // but since we are awaiting the client call which ensures the host is started, it should be fine.
-        // If it's flaky, we can add a retry loop for assertions. 
+        Assert.True(await harness.Published.Any<Maliev.MessagingContracts.Generated.PermissionRegistrationRequest>(
+            x => x.Context.Message.ServiceName == "notification"), "Should publish permission registration request");
 
-        Assert.Single(permissionRequests);
-        Assert.Single(roleRequests);
+        var registrationRequest = harness.Published.Select<Maliev.MessagingContracts.Generated.PermissionRegistrationRequest>()
+            .First(x => x.Context.Message.ServiceName == "notification").Context.Message;
 
-        var permContent = await permissionRequests[0].Content!.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("notification", permContent.GetProperty("serviceName").GetString());
-        Assert.Equal(NotificationPermissions.All.Length, permContent.GetProperty("permissions").GetArrayLength());
-
-        var roleContent = await roleRequests[0].Content!.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("notification", roleContent.GetProperty("serviceName").GetString());
-        Assert.Equal(NotificationPredefinedRoles.All.Length, roleContent.GetProperty("roles").GetArrayLength());
+        Assert.Equal(NotificationPermissions.All.Count, registrationRequest.Permissions.Count);
+        Assert.Equal(NotificationPredefinedRoles.All.Count, registrationRequest.Roles.Count);
     }
 
     [Fact]
@@ -193,4 +161,3 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }
-

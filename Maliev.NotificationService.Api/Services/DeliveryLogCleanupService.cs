@@ -58,7 +58,7 @@ public class DeliveryLogCleanupService : IHostedService, IDisposable
 
         // Schedule timer to run daily at 2 AM UTC
         _timer = new Timer(
-            CleanupDeliveryLogs,
+            async state => await CleanupDeliveryLogsAsync(state),
             null,
             initialDelay,
             TimeSpan.FromDays(1)); // Run every 24 hours
@@ -66,7 +66,7 @@ public class DeliveryLogCleanupService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
-    private async void CleanupDeliveryLogs(object? state)
+    private async Task CleanupDeliveryLogsAsync(object? state)
     {
         try
         {
@@ -110,4 +110,3 @@ public class DeliveryLogCleanupService : IHostedService, IDisposable
         _timer?.Dispose();
     }
 }
-

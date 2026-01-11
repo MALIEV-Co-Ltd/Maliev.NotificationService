@@ -82,7 +82,7 @@ public partial class TemplateRenderer : ITemplateRenderer
             sb.Append('|');
             sb.Append(kvp.Key);
             sb.Append('=');
-            sb.Append(kvp.Value?.ToString() ?? "");
+            sb.Append(System.Text.Json.JsonSerializer.Serialize(kvp.Value));
         }
 
         var bytes = Encoding.UTF8.GetBytes(sb.ToString());

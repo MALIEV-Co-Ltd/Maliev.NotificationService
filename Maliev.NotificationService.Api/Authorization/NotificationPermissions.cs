@@ -1,62 +1,76 @@
 namespace Maliev.NotificationService.Api.Authorization;
 
 /// <summary>
-/// Defines permission constants for the Notification Service.
-/// Note: Constants are raw permission IDs. The RequirePermission attribute adds 
-/// the "Permission:" prefix for integration with ServiceDefaults policy provider.
+/// Constants for Notification Service permissions.
+/// Follows GCP-style naming: {service}.{resource}.{action}
 /// </summary>
 public static class NotificationPermissions
 {
-    // Template Operations
-    public const string TemplatesCreate = "notification.templates.create";
-    public const string TemplatesRead = "notification.templates.read";
-    public const string TemplatesUpdate = "notification.templates.update";
-    public const string TemplatesDelete = "notification.templates.delete";
-    public const string TemplatesPublish = "notification.templates.publish";
-    public const string TemplatesTest = "notification.templates.test";
-
     // Notification Operations
-    public const string NotificationsSend = "notification.notifications.send";
-    public const string NotificationsRead = "notification.notifications.read";
-    public const string NotificationsRetry = "notification.notifications.retry";
-    public const string NotificationsCancel = "notification.notifications.cancel";
-    public const string NotificationsBulk = "notification.notifications.bulk";
+    /// <summary>Permission to send notifications.</summary>
+    public const string Send = "notification.notifications.send";
+    /// <summary>Permission to view notification history.</summary>
+    public const string Read = "notification.notifications.read";
 
-    // Channel Binding Operations
+    // Template Operations
+    /// <summary>Permission to manage notification templates.</summary>
+    public const string ManageTemplates = "notification.templates.manage";
+    /// <summary>Permission to create templates.</summary>
+    public const string TemplatesCreate = "notification.templates.create";
+    /// <summary>Permission to read templates.</summary>
+    public const string TemplatesRead = "notification.templates.read";
+    /// <summary>Permission to update templates.</summary>
+    public const string TemplatesUpdate = "notification.templates.update";
+
+    // Channel/Binding Operations
+    /// <summary>Permission to configure notification channels.</summary>
+    public const string ConfigureChannels = "notification.channels.configure";
+    /// <summary>Permission to create bindings.</summary>
     public const string BindingsCreate = "notification.bindings.create";
+    /// <summary>Permission to read bindings.</summary>
     public const string BindingsRead = "notification.bindings.read";
-    public const string BindingsUpdate = "notification.bindings.update";
-    public const string BindingsDelete = "notification.bindings.delete";
-    public const string BindingsVerify = "notification.bindings.verify";
+    /// <summary>Permission to list all bindings for a user.</summary>
     public const string BindingsListUser = "notification.bindings.list-user";
+    /// <summary>Permission to update bindings.</summary>
+    public const string BindingsUpdate = "notification.bindings.update";
+    /// <summary>Permission to delete bindings.</summary>
+    public const string BindingsDelete = "notification.bindings.delete";
+
+    // Log Operations
+    /// <summary>Permission to read delivery logs.</summary>
+    public const string LogsRead = "notification.logs.read";
 
     // Preference Operations
+    /// <summary>Permission to read user preferences.</summary>
     public const string PreferencesRead = "notification.preferences.read";
-    public const string PreferencesUpdate = "notification.preferences.update";
-    public const string PreferencesDelete = "notification.preferences.delete";
+    /// <summary>Permission to read any user preferences.</summary>
     public const string PreferencesReadAny = "notification.preferences.read-any";
-
-    // Delivery Log Operations
-    public const string LogsRead = "notification.logs.read";
-    public const string LogsReadUser = "notification.logs.read-user";
-    public const string LogsExport = "notification.logs.export";
-    public const string LogsPurge = "notification.logs.purge";
-
-    // System Operations
-    public const string SystemConfigure = "notification.system.configure";
-    public const string SystemViewStats = "notification.system.view-stats";
-    public const string SystemManageChannels = "notification.system.manage-channels";
+    /// <summary>Permission to update user preferences.</summary>
+    public const string PreferencesUpdate = "notification.preferences.update";
+    /// <summary>Permission to delete user preferences.</summary>
+    public const string PreferencesDelete = "notification.preferences.delete";
 
     /// <summary>
-    /// Gets all defined permissions.
+    /// Collection of all permissions for easy registration.
     /// </summary>
-    public static readonly string[] All = new[]
+    public static readonly IReadOnlyDictionary<string, string> All = new Dictionary<string, string>
     {
-        TemplatesCreate, TemplatesRead, TemplatesUpdate, TemplatesDelete, TemplatesPublish, TemplatesTest,
-        NotificationsSend, NotificationsRead, NotificationsRetry, NotificationsCancel, NotificationsBulk,
-        BindingsCreate, BindingsRead, BindingsUpdate, BindingsDelete, BindingsVerify, BindingsListUser,
-        PreferencesRead, PreferencesUpdate, PreferencesDelete, PreferencesReadAny,
-        LogsRead, LogsReadUser, LogsExport, LogsPurge,
-        SystemConfigure, SystemViewStats, SystemManageChannels
+        { Send, "Send multi-channel notifications" },
+        { Read, "Read notification history and logs" },
+        { ManageTemplates, "Manage notification content templates" },
+        { TemplatesCreate, "Create notification templates" },
+        { TemplatesRead, "Read notification templates" },
+        { TemplatesUpdate, "Update notification templates" },
+        { ConfigureChannels, "Configure communication channels and providers" },
+        { BindingsCreate, "Create channel bindings" },
+        { BindingsRead, "Read channel bindings" },
+        { BindingsListUser, "List channel bindings for a user" },
+        { BindingsUpdate, "Update channel bindings" },
+        { BindingsDelete, "Delete channel bindings" },
+        { LogsRead, "Read delivery logs" },
+        { PreferencesRead, "Read user preferences" },
+        { PreferencesReadAny, "Read any user preferences" },
+        { PreferencesUpdate, "Update user preferences" },
+        { PreferencesDelete, "Delete user preferences" }
     };
 }

@@ -119,7 +119,7 @@ public class NotificationRouter : INotificationRouter
             var deliveryResult = await provider.SendAsync(
                 decryptedIdentifier,
                 message,
-                new Dictionary<string, string>(), // TODO: Add metadata
+                new Dictionary<string, string> { { "subject", payload.NotificationType } },
                 cancellationToken);
             stopwatch.Stop();
 
@@ -239,7 +239,8 @@ public class NotificationRouter : INotificationRouter
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error routing notification: EventId={EventId}", notificationEvent.MessageId);
-            return RoutingResult.Failed($"Routing error: {ex.Message}", isRetryable: true);
+            var isRetryable = ex is not TemplateRenderingException;
+            return RoutingResult.Failed($"Routing error: {ex.Message}", isRetryable: isRetryable);
         }
     }
 
@@ -440,4 +441,3 @@ public class NotificationRouter : INotificationRouter
         }
     }
 }
-

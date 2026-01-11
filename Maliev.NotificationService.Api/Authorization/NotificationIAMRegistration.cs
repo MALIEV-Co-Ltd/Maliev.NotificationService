@@ -3,41 +3,40 @@ using Maliev.NotificationService.Api.Authorization;
 
 namespace Maliev.NotificationService.Api.Authorization;
 
+/// <summary>
+/// Registers Notification Service permissions and roles with IAM via RabbitMQ.
+/// </summary>
 public class NotificationIAMRegistration : IAMRegistrationService
 {
-    private readonly IConfiguration _configuration;
-
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NotificationIAMRegistration"/> class.
+    /// </summary>
     public NotificationIAMRegistration(
-        IHttpClientFactory httpClientFactory,
-        ILogger<NotificationIAMRegistration> logger,
-        IConfiguration configuration)
-        : base(httpClientFactory, logger, "notification")
+        IConfiguration configuration,
+        ILogger<NotificationIAMRegistration> logger)
+        : base(configuration, logger, "notification")
     {
-        _configuration = configuration;
     }
 
+    /// <inheritdoc/>
     protected override IEnumerable<PermissionRegistration> GetPermissions()
     {
         return NotificationPermissions.All.Select(p => new PermissionRegistration
         {
-            PermissionId = p,
-            Description = $"Permission: {p}"
+            PermissionId = p.Key,
+            Description = p.Value
         });
     }
 
+    /// <inheritdoc/>
     protected override IEnumerable<RoleRegistration> GetPredefinedRoles()
     {
         return NotificationPredefinedRoles.All.Select(r => new RoleRegistration
         {
             RoleId = r.RoleId,
             Description = r.Description,
-            PermissionIds = r.PermissionIds,
-            IsCustom = r.IsCustom
+            PermissionIds = r.Permissions.ToList(),
+            IsCustom = false // Predefined roles are not custom roles
         });
-    }
-
-    public async Task RegisterWithCheckAsync(CancellationToken cancellationToken)
-    {
-        await base.RegisterAsync(cancellationToken);
     }
 }

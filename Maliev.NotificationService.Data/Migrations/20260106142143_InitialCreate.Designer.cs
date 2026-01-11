@@ -3,6 +3,7 @@ using System;
 using Maliev.NotificationService.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Maliev.NotificationService.Data.Migrations
 {
     [DbContext(typeof(NotificationDbContext))]
-    partial class NotificationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260106142143_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -231,11 +234,6 @@ namespace Maliev.NotificationService.Data.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_delivery_logs_user_id");
-
-                    b.HasIndex("EventId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_delivery_logs_event_id_user_id")
-                        .HasFilter("\"status\" = 'delivered'");
 
                     b.ToTable("delivery_logs");
                 });
