@@ -33,6 +33,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     private readonly RedisContainer _redisContainer;
     private readonly RabbitMqContainer _rabbitmqContainer;
     private readonly RSA _testRsa;
+    private readonly string _testJwtKey;
+    private readonly string _testEncryptionKey;
     private bool _containersStarted;
 
     /// <summary>
@@ -56,6 +58,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             .Build();
 
         _testRsa = RSA.Create(2048);
+        _testJwtKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        _testEncryptionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
         // Set environment variable EARLY so Program.cs picks it up during WebApplication.CreateBuilder
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
@@ -127,8 +131,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
         builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Testing");
         builder.UseSetting("IAM:BaseUrl", "http://localhost:8080");
-        builder.UseSetting("Jwt:SecurityKey", "test-secret-key-at-least-32-characters-long");
-        builder.UseSetting("Encryption:DataProtectionKey", "vS8+ZshUpXv/vS8+ZshUpXv/vS8+ZshUpXv/vS8+ZsY="); // Stable 32-byte key
+        builder.UseSetting("Jwt:SecurityKey", _testJwtKey);
+        builder.UseSetting("Encryption:DataProtectionKey", _testEncryptionKey);
         builder.UseSetting("Features:PermissionBasedAuthEnabled", "true"); // IMPORTANT: Enable permission based auth for tests
 
         // Export RSA public key for JWT validation
