@@ -34,6 +34,11 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.CreatedAt); // For time-range queries and partitioning
             entity.HasIndex(e => e.Status);
+
+            // Filtered unique index to prevent duplicate 'delivered' logs for the same user and event
+            entity.HasIndex(e => new { e.EventId, e.UserId })
+                .IsUnique()
+                .HasFilter("\"status\" = 'delivered'");
         });
 
         // RetryQueueEntry configuration
@@ -122,4 +127,3 @@ public class NotificationDbContext : DbContext
         return base.SaveChangesAsync(cancellationToken);
     }
 }
-
