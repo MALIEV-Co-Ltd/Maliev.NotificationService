@@ -1,75 +1,33 @@
-using Maliev.Aspire.ServiceDefaults.IAM;
-
 namespace Maliev.NotificationService.Api.Authorization;
 
+/// <summary>
+/// Predefined roles for the Notification Service.
+/// </summary>
 public static class NotificationPredefinedRoles
 {
-    public static readonly RoleRegistration Admin = new()
-    {
-        RoleId = "roles.notification.admin",
-        Description = "Full control over notification system",
-        PermissionIds = NotificationPermissions.All.ToList(),
-        IsCustom = false
-    };
+    /// <summary>Role for systems or users that only need to send notifications.</summary>
+    public const string Sender = "roles.notification.sender";
 
-    public static readonly RoleRegistration Manager = new()
-    {
-        RoleId = "roles.notification.manager",
-        Description = "Manage templates and view all logs",
-        PermissionIds = new List<string>
-        {
-            NotificationPermissions.TemplatesCreate,
-            NotificationPermissions.TemplatesRead,
-            NotificationPermissions.TemplatesUpdate,
-            NotificationPermissions.TemplatesDelete,
-            NotificationPermissions.TemplatesPublish,
-            NotificationPermissions.TemplatesTest,
-            NotificationPermissions.NotificationsSend,
-            NotificationPermissions.NotificationsRead,
-            NotificationPermissions.NotificationsRetry,
-            NotificationPermissions.LogsRead,
-            NotificationPermissions.LogsExport,
-            NotificationPermissions.SystemViewStats
-        },
-        IsCustom = false
-    };
+    /// <summary>Role for administrators managing notification infrastructure.</summary>
+    public const string Admin = "roles.notification.admin";
 
-    public static readonly RoleRegistration Sender = new()
-    {
-        RoleId = "roles.notification.sender",
-        Description = "Send notifications and view delivery status",
-        PermissionIds = new List<string>
-        {
-            NotificationPermissions.NotificationsSend,
-            NotificationPermissions.NotificationsRead,
-            NotificationPermissions.NotificationsRetry,
-            NotificationPermissions.TemplatesRead,
-            NotificationPermissions.LogsRead
-        },
-        IsCustom = false
-    };
+    /// <summary>Role for users managing their own notification preferences.</summary>
+    public const string User = "roles.notification.user";
 
-    public static readonly RoleRegistration User = new()
+    /// <summary>
+    /// Collection of role definitions for registration.
+    /// </summary>
+    public static readonly IReadOnlyList<(string RoleId, string Description, string[] Permissions)> All = new List<(string, string, string[])>
     {
-        RoleId = "roles.notification.user",
-        Description = "Manage own preferences and channel bindings",
-        PermissionIds = new List<string>
+        (Sender, "Allows sending notifications via all channels", new[] { NotificationPermissions.Send }),
+        (Admin, "Full administrative access to notifications, templates, and channels",
+            NotificationPermissions.All.Keys.ToArray()),
+        (User, "Standard user role for self-service preferences and bindings", new[]
         {
-            NotificationPermissions.BindingsCreate,
-            NotificationPermissions.BindingsRead,
-            NotificationPermissions.BindingsUpdate,
-            NotificationPermissions.BindingsDelete,
-            NotificationPermissions.BindingsVerify,
-            NotificationPermissions.BindingsListUser,
             NotificationPermissions.PreferencesRead,
             NotificationPermissions.PreferencesUpdate,
-            NotificationPermissions.LogsReadUser
-        },
-        IsCustom = false
-    };
-
-    public static readonly RoleRegistration[] All = new[]
-    {
-        Admin, Manager, Sender, User
+            NotificationPermissions.BindingsRead,
+            NotificationPermissions.BindingsUpdate
+        })
     };
 }
