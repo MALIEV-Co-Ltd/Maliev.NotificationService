@@ -27,17 +27,9 @@ public class EncryptionService : IEncryptionService
 
         if (string.IsNullOrEmpty(keyBase64))
         {
-            // Generate a random key for development (NOT for production!)
-            _logger.LogWarning(
-                "Encryption key not found in configuration. Generating random key for development. " +
-                "THIS IS NOT SECURE FOR PRODUCTION!");
-
-            _key = RandomNumberGenerator.GetBytes(KeySize);
-
-            _logger.LogWarning(
-                "Generated development encryption key (Base64): {Key}. " +
-                "Store this in appsettings.json under 'Encryption:DataProtectionKey' for consistency.",
-                Convert.ToBase64String(_key));
+            throw new InvalidOperationException(
+                "Encryption key is missing. Please provide 'Encryption:DataProtectionKey' in configuration. " +
+                "For local development, you can use a stable Base64-encoded 32-byte key.");
         }
         else
         {

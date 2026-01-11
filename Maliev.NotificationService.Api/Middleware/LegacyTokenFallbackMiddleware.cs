@@ -28,13 +28,18 @@ public class LegacyTokenFallbackMiddleware
                 var identity = (ClaimsIdentity)context.User.Identity;
 
                 // Add permissions from the default user role
-                foreach (var permissionId in NotificationPredefinedRoles.User.PermissionIds)
+                var userRole = NotificationPredefinedRoles.All.FirstOrDefault(r => r.RoleId == NotificationPredefinedRoles.User);
+
+                if (userRole.Permissions != null)
                 {
-                    identity.AddClaim(new Claim("permissions", permissionId));
+                    foreach (var permissionId in userRole.Permissions)
+                    {
+                        identity.AddClaim(new Claim("permissions", permissionId));
+                    }
                 }
 
                 // Also add the role claim
-                identity.AddClaim(new Claim(ClaimTypes.Role, NotificationPredefinedRoles.User.RoleId));
+                identity.AddClaim(new Claim(ClaimTypes.Role, NotificationPredefinedRoles.User));
             }
         }
 

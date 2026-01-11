@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 using brevo_csharp.Api;
 using brevo_csharp.Client;
 using brevo_csharp.Model;
@@ -15,6 +16,7 @@ public partial class EmailProvider : IChannelProvider
     private readonly ILogger<EmailProvider> _logger;
     private readonly IConfiguration _configuration;
     private readonly TransactionalEmailsApi _emailApi;
+    private readonly PartitionedRateLimiter<string> _rateLimiter;
     private readonly string? _senderEmail;
     private readonly string? _senderName;
 
@@ -40,6 +42,18 @@ public partial class EmailProvider : IChannelProvider
             _emailApi = null!;
         }
 
+        // Define rate limiter matches the policy in Program.cs
+        _rateLimiter = PartitionedRateLimiter.Create<string, string>(resource =>
+        {
+            return RateLimitPartition.GetTokenBucketLimiter("email", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 100,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 100,
+                AutoReplenishment = true
+            });
+        });
+
         _senderEmail = _configuration["Brevo:SenderEmail"] ?? "noreply@maliev.com";
         _senderName = _configuration["Brevo:SenderName"] ?? "Maliev Notification Service";
     }
@@ -50,6 +64,14 @@ public partial class EmailProvider : IChannelProvider
         Dictionary<string, string>? metadata,
         CancellationToken ct)
     {
+        // Enforce rate limiting
+        using var lease = await _rateLimiter.AcquireAsync("email", 1, ct);
+        if (!lease.IsAcquired)
+        {
+            _logger.LogWarning("Rate limit exceeded for Email provider");
+            return DeliveryResult.RateLimited();
+        }
+
         try
         {
             // Validate email format
@@ -113,7 +135,7 @@ public partial class EmailProvider : IChannelProvider
             }
 
             // Send email
-            var result = await SystemTask.Run(() => _emailApi.SendTransacEmail(sendSmtpEmail), ct);
+            var result = await _emailApi.SendTransacEmailAsync(sendSmtpEmail);
 
             _logger.LogInformation(
                 "Email sent successfully via Brevo: To={Recipient}, MessageId={MessageId}",

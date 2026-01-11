@@ -32,7 +32,10 @@ public class DeduplicationService : IDeduplicationService
         {
             var cacheKey = GenerateCacheKey(eventId, timestamp);
 
-            // Check if entry already exists in cache
+            // Check if entry already exists in cache using an atomic-like pattern if possible
+            // For true atomicity with IDistributedCache, we check if the key is null and set it.
+            // Since IDistributedCache doesn't have SetNX, we use a simple check-then-set
+            // but log that high-concurrency environments should use a Redis-specific NX implementation.
             var existingValue = await _cache.GetAsync(cacheKey, cancellationToken);
 
             if (existingValue != null)
@@ -48,7 +51,7 @@ public class DeduplicationService : IDeduplicationService
             }
 
             // Entry does not exist, create it
-            var markerBytes = Encoding.UTF8.GetBytes("1"); // Simple presence marker
+            var markerBytes = Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToString("O"));
             await _cache.SetAsync(
                 cacheKey,
                 markerBytes,

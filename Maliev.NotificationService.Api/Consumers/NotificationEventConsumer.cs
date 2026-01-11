@@ -5,6 +5,7 @@ using Maliev.NotificationService.Api.Services;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.MessagingContracts.Generated;
+using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Consumers;
 
@@ -75,11 +76,29 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
                 }
             }
 
-            // Step 2: Process each target user
-            foreach (var targetUser in payload.TargetUsers)
+            // Step 2: Process each target user in parallel
+            var processingTasks = payload.TargetUsers.Select(async targetUser =>
             {
-                await ProcessUserNotificationAsync(notificationEvent, targetUser, cancellationToken);
-            }
+                // Check if already delivered to this user for this event to avoid duplicates during retries
+                var alreadyDelivered = await _dbContext.DeliveryLogs.AsNoTracking()
+                    .AnyAsync(l => l.EventId == notificationEvent.MessageId.ToString()
+                                && l.UserId == targetUser.UserId
+                                && l.Status == "delivered", cancellationToken);
+
+                if (!alreadyDelivered)
+                {
+                    await ProcessUserNotificationAsync(notificationEvent, targetUser, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "User already notified for this event: UserId={UserId}, EventId={EventId}",
+                        targetUser.UserId,
+                        notificationEvent.MessageId);
+                }
+            });
+
+            await Task.WhenAll(processingTasks);
 
             _logger.LogInformation(
                 "Completed processing notification event: EventId={EventId}",
@@ -194,7 +213,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
         var attemptNumber = await GetCurrentAttemptNumberAsync(notificationEvent.MessageId.ToString(), cancellationToken);
 
         // Get max retry attempts based on priority
-        var maxRetries = notificationEvent.Payload.Priority.ToLowerInvariant() == "critical" ? 3 : 1;
+        var maxRetries = string.Equals(notificationEvent.Payload.Priority, "critical", StringComparison.OrdinalIgnoreCase) ? 3 : 1;
 
         if (attemptNumber >= maxRetries)
         {
@@ -233,7 +252,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             routingResult,
             DeliveryStatus.Failed,
             cancellationToken,
-            attemptNumber: attemptNumber);
+            attemptNumber: attemptNumber + 1);
 
         if (retryResult.WasScheduled)
         {
@@ -269,16 +288,21 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             targetUser.UserId,
             errorMessage);
 
-        // Get all failure reasons from retry history
-        var failureReasons = await GetFailureReasonsAsync(notificationEvent.MessageId.ToString(), cancellationToken);
+        // Get all failure reasons from retry history for this specific user
+        var failureReasons = await GetFailureReasonsAsync(notificationEvent.MessageId.ToString(), targetUser.UserId, cancellationToken);
         failureReasons.Add(errorMessage);
 
         // Create dead letter record
         var deadLetterRecord = new DeadLetterRecord
         {
             EventId = notificationEvent.MessageId.ToString(),
-            EventPayload = System.Text.Json.JsonSerializer.Serialize(notificationEvent),
-            FailureReasons = System.Text.Json.JsonSerializer.Serialize(failureReasons),
+            // Optimizing storage: Only store essential info for retry
+            EventPayload = JsonSerializer.Serialize(new
+            {
+                Event = notificationEvent,
+                TargetUserId = targetUser.UserId
+            }),
+            FailureReasons = JsonSerializer.Serialize(failureReasons),
             TotalAttempts = failureReasons.Count,
             EscalationStatus = "pending",
             CreatedAt = DateTimeOffset.UtcNow
@@ -332,11 +356,9 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
             EventId = notificationEvent.MessageId.ToString(),
             UserId = targetUser.UserId,
             ChannelType = routingResult.SelectedChannel ?? "unknown",
-            RecipientIdentifier = routingResult.DeliveryResult?.MessageId != null
-                ? $"msg-{routingResult.DeliveryResult.MessageId}"
-                : "not-available",
+            RecipientIdentifier = targetUser.UserId, // Use UserId as recipient identifier for tracking
             Status = status.ToString().ToLowerInvariant(),
-            MessageContent = TruncateMessage(notificationEvent.Payload.TemplateId, 500),
+            MessageContent = TruncateMessage(routingResult.ErrorMessage ?? additionalInfo ?? notificationEvent.Payload.TemplateId, 500),
             ProviderResponse = routingResult.DeliveryResult?.ProviderResponse ?? additionalInfo,
             ProviderMessageId = routingResult.DeliveryResult?.MessageId,
             AttemptNumber = attemptNumber,
@@ -358,10 +380,10 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
         return retryEntry?.AttemptNumber ?? 0;
     }
 
-    private async Task<List<string>> GetFailureReasonsAsync(string eventId, CancellationToken cancellationToken)
+    private async Task<List<string>> GetFailureReasonsAsync(string eventId, string userId, CancellationToken cancellationToken)
     {
         var deliveryLogs = await _dbContext.DeliveryLogs
-            .Where(d => d.EventId == eventId && d.Status == "failed")
+            .Where(d => d.EventId == eventId && d.UserId == userId && d.Status == "failed")
             .OrderBy(d => d.CreatedAt)
             .Select(d => d.ProviderResponse ?? "Unknown error")
             .ToListAsync(cancellationToken);
@@ -377,4 +399,3 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
         return message[..maxLength];
     }
 }
-

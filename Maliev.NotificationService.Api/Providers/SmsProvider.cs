@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
@@ -14,6 +15,7 @@ public partial class SmsProvider : IChannelProvider
 {
     private readonly ILogger<SmsProvider> _logger;
     private readonly IConfiguration _configuration;
+    private readonly PartitionedRateLimiter<string> _rateLimiter;
     private readonly string? _fromPhoneNumber;
     private readonly bool _isConfigured;
 
@@ -41,6 +43,18 @@ public partial class SmsProvider : IChannelProvider
             _logger.LogWarning("Twilio credentials not fully configured. SMS sending will be simulated.");
             _isConfigured = false;
         }
+
+        // Define rate limiter matches the policy in Program.cs
+        _rateLimiter = PartitionedRateLimiter.Create<string, string>(resource =>
+        {
+            return RateLimitPartition.GetTokenBucketLimiter("sms", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 100,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 100,
+                AutoReplenishment = true
+            });
+        });
     }
 
     public async Task<DeliveryResult> SendAsync(
@@ -49,6 +63,14 @@ public partial class SmsProvider : IChannelProvider
         Dictionary<string, string>? metadata,
         CancellationToken ct)
     {
+        // Enforce rate limiting
+        using var lease = await _rateLimiter.AcquireAsync("sms", 1, ct);
+        if (!lease.IsAcquired)
+        {
+            _logger.LogWarning("Rate limit exceeded for SMS provider");
+            return DeliveryResult.RateLimited();
+        }
+
         try
         {
             // Validate E.164 phone number format

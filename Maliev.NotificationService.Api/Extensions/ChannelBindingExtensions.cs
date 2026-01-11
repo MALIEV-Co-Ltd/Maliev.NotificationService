@@ -112,8 +112,8 @@ public static class ChannelBindingExtensions
             if (parts.Length == 2 && parts[0].Length > 0)
             {
                 var localPart = parts[0];
-                var obfuscatedLocal = localPart.Length > 3
-                    ? $"{localPart[0]}***"
+                var obfuscatedLocal = localPart.Length > 1
+                    ? $"{localPart[0]}***{localPart[^1]}"
                     : $"{localPart[0]}***";
                 return $"{obfuscatedLocal}@{parts[1]}";
             }
@@ -140,4 +140,3 @@ public static class ChannelBindingExtensions
         return $"{identifier[0]}***";
     }
 }
-
