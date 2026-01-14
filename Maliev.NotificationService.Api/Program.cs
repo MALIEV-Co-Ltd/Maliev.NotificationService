@@ -1,4 +1,3 @@
-#pragma warning disable CA1848 // For improved performance, use the LoggerMessage delegates
 using Maliev.NotificationService.Data;
 using Maliev.Aspire.ServiceDefaults;
 using MassTransit;
@@ -13,7 +12,7 @@ var bootstrapLogger = loggerFactory.CreateLogger("Program");
 
 try
 {
-    bootstrapLogger.LogInformation("Starting Notification Service host");
+    Log.StartingHost(bootstrapLogger, "Notification Service");
 
     var builder = WebApplication.CreateBuilder(args);
 
@@ -283,17 +282,17 @@ try
     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
 
     await SeedDefaultTemplatesAsync(dbContext, logger);
-    logger.LogInformation("Database seeding completed successfully");
+    Log.DatabaseSeedingCompleted(logger);
 
     // Initialize metrics (non-blocking)
     InitializeMetrics(app.Services);
 
-    logger.LogInformation("Notification Service started successfully");
+    Log.ServiceStarted(logger, "Notification Service");
     await app.RunAsync();
 }
 catch (Exception ex)
 {
-    bootstrapLogger.LogCritical(ex, "Notification Service host terminated unexpectedly during startup");
+    Log.HostTerminated(bootstrapLogger, ex, "Notification Service");
     throw;
 }
 finally
@@ -372,12 +371,12 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            logger.LogInformation("Default templates seeded successfully");
+            Log.TemplatesSeeded(logger);
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError(ex, "Error seeding default templates");
+            Log.TemplatesSeededError(logger, ex);
             throw;
         }
     });
@@ -434,4 +433,28 @@ static void InitializeMetrics(IServiceProvider services)
             return 0;
         }
     });
+}
+
+public partial class Program
+{
+    internal static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Information, Message = "Starting {ServiceName} host")]
+        public static partial void StartingHost(ILogger logger, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Critical, Message = "{ServiceName} host terminated unexpectedly during startup")]
+        public static partial void HostTerminated(ILogger logger, Exception ex, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "{ServiceName} started successfully")]
+        public static partial void ServiceStarted(ILogger logger, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Database seeding completed successfully")]
+        public static partial void DatabaseSeedingCompleted(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Default templates seeded successfully")]
+        public static partial void TemplatesSeeded(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Error seeding default templates")]
+        public static partial void TemplatesSeededError(ILogger logger, Exception ex);
+    }
 }
