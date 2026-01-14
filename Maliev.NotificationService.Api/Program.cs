@@ -259,22 +259,6 @@ try
     var app = builder.Build();
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // Add standard middleware
-    app.UseStandardMiddleware();
-    app.UseCors();
-
-    // Enable Authentication and Authorization
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    // Map ServiceDefaults endpoints (/health, /liveness, /readiness, /metrics)
-    app.MapDefaultEndpoints("notification");
-
-    // Map OpenAPI and Scalar documentation (dev/staging only)
-    app.MapApiDocumentation(servicePrefix: "notification");
-
-    app.MapControllers();
-
     // Run database migrations and seeding asynchronously (non-blocking)
     await app.MigrateDatabaseAsync<NotificationDbContext>();
 
