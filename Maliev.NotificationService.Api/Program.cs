@@ -3,290 +3,302 @@ using Maliev.Aspire.ServiceDefaults;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Microsoft.Extensions.Logging;
 using System.Threading.RateLimiting;
 
-var builder = WebApplication.CreateBuilder(args);
+// Initialize bootstrap logging
+using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
+var bootstrapLogger = loggerFactory.CreateLogger("Program");
 
-// (1) Load secrets from Google Secret Manager (must be first)
-builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
-
-// (2) Add ServiceDefaults immediately after (includes OpenTelemetry, health checks, Redis, etc.)
-builder.AddServiceDefaults();
-builder.AddStandardMiddleware(options =>
+try
 {
-    options.EnableRequestLogging = true;
-});
+    bootstrapLogger.LogInformation("Starting Notification Service host");
 
-builder.Services.AddMemoryCache(options =>
-{
-    options.SizeLimit = 1024;
-});
+    var builder = WebApplication.CreateBuilder(args);
 
-// Add IAM Client
-builder.AddIAMServiceClient("notification");
+    // (1) Load secrets from Google Secret Manager (must be first)
+    builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
 
-// Add custom metrics meter
-builder.AddServiceMeters("notifications-meter");
-
-// (3) Add PostgreSQL DbContext
-builder.AddPostgresDbContext<NotificationDbContext>(connectionName: "NotificationDbContext");
-
-// (4) Add Redis connection (via ServiceDefaults)
-builder.AddRedisDistributedCache(instanceName: "notification:");
-
-// Add JWT Authentication and Permission Authorization
-builder.AddJwtAuthentication();
-builder.Services.AddPermissionAuthorization();
-
-// (4a) Register notification services
-builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IDeduplicationService,
-    Maliev.NotificationService.Api.Services.DeduplicationService>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Services.INotificationRouter,
-    Maliev.NotificationService.Api.Services.NotificationRouter>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IRetryService,
-    Maliev.NotificationService.Api.Services.RetryService>();
-builder.Services.AddSingleton<Maliev.NotificationService.Api.Services.ITemplateRenderer,
-    Maliev.NotificationService.Api.Services.TemplateRenderer>();
-builder.Services.AddSingleton<Maliev.NotificationService.Api.Services.IEncryptionService,
-    Maliev.NotificationService.Api.Services.EncryptionService>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IAlertingService,
-    Maliev.NotificationService.Api.Services.AlertingService>();
-
-// (4aa) Register background services
-builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.DeliveryLogCleanupService>();
-builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.RetryCleanupBackgroundService>();
-builder.Services.AddIAMRegistration<Maliev.NotificationService.Api.Authorization.NotificationIAMRegistration>("notification");
-
-// (4b) Register channel providers
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.EmailProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.LineProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.WhatsAppProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.SmsProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.SlackProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.FacebookMessengerProvider>();
-builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.InstagramProvider>();
-
-// (4c) Register channel provider factory
-builder.Services.AddScoped<Maliev.NotificationService.Api.Services.ChannelProviderFactory>();
-
-// (4d) Configure HttpClient for channel providers
-builder.Services.AddHttpClient("WhatsApp", client =>
-{
-    client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
-    client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
-})
-.AddStandardResilienceHandler(); // From ServiceDefaults - includes retry, timeout, circuit breaker
-
-builder.Services.AddHttpClient("Line", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ApiBaseAddresses:LINE"] ?? "https://api.line.me/v2/bot");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("Facebook", client =>
-{
-    client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
-    client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("Instagram", client =>
-{
-    client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
-    client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("Alerting", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(10);
-    client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
-})
-.AddStandardResilienceHandler();
-
-// (4e) Add rate limiting for channel providers using TokenBucketRateLimiter
-builder.Services.AddRateLimiter(options =>
-{
-    // LINE provider: 1000 token limit, 10 tokens per second
-    options.AddPolicy("LineProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("line", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 1000,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 10,
-            AutoReplenishment = true
-        }));
-
-    // WhatsApp provider: 80 token limit, 80 tokens per second
-    options.AddPolicy("WhatsAppProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("whatsapp", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 80,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 80,
-            AutoReplenishment = true
-        }));
-
-    // Email provider: 100 token limit, 100 tokens per second
-    options.AddPolicy("EmailProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("email", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 100,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 100,
-            AutoReplenishment = true
-        }));
-
-    // SMS/Twilio provider: 100 token limit, 100 tokens per second
-    options.AddPolicy("SmsProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("sms", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 100,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 100,
-            AutoReplenishment = true
-        }));
-
-    // Slack provider: 1 token limit, 1 token per second (Slack has strict rate limits)
-    options.AddPolicy("SlackProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("slack", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 1,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 1,
-            AutoReplenishment = true
-        }));
-
-    // Facebook provider: 200 token limit, 200 tokens per second
-    options.AddPolicy("FacebookProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("facebook", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 200,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 200,
-            AutoReplenishment = true
-        }));
-
-    // Instagram provider: 200 token limit, 200 tokens per second
-    options.AddPolicy("InstagramProvider", context =>
-        RateLimitPartition.GetTokenBucketLimiter("instagram", _ => new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 200,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            TokensPerPeriod = 200,
-            AutoReplenishment = true
-        }));
-});
-
-// (5) Add MassTransit with RabbitMQ using ServiceDefaults
-builder.AddMassTransitWithRabbitMq(
-    configure: x =>
+    // (2) Add ServiceDefaults immediately after (includes OpenTelemetry, health checks, Redis, etc.)
+    builder.AddServiceDefaults();
+    builder.AddStandardMiddleware(options =>
     {
-        x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
-        x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
-
-        // Add RabbitMQ message scheduler for delayed message delivery
-        x.AddDelayedMessageScheduler();
-    },
-    configureRabbitMq: (context, cfg) =>
-    {
-        // Configure delayed message scheduler
-        cfg.UseDelayedMessageScheduler();
-
-        // Receive endpoint for PaymentCompletedEvent
-        cfg.ReceiveEndpoint("notification-payment-completed", e =>
-        {
-            e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>(context);
-        });
-
-        // Critical notification queue - low prefetch for fast individual processing
-        cfg.ReceiveEndpoint("notification-critical", e =>
-        {
-            e.Bind("maliev.notifications", s =>
-            {
-                s.RoutingKey = "maliev.notification.v1.*.critical";
-                s.ExchangeType = "topic";
-            });
-
-            e.PrefetchCount = 10; // Lower prefetch for faster processing
-            e.ConcurrentMessageLimit = 10;
-
-            e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>(context);
-
-            // Retry policy: 3 attempts with exponential backoff (1s, 2s, 4s)
-            e.UseMessageRetry(r => r.Intervals(1000, 2000, 4000));
-        });
-
-        // Standard notification queue - higher prefetch for batch efficiency
-        cfg.ReceiveEndpoint("notification-standard", e =>
-        {
-            e.Bind("maliev.notifications", s =>
-            {
-                s.RoutingKey = "maliev.notification.v1.*.standard";
-                s.ExchangeType = "topic";
-            });
-
-            e.PrefetchCount = 50; // Higher prefetch for throughput
-            e.ConcurrentMessageLimit = 50;
-
-            e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>(context);
-
-            // Retry policy: 1 attempt with fixed 5s delay
-            e.UseMessageRetry(r => r.Interval(1, 5000));
-        });
+        options.EnableRequestLogging = true;
     });
 
-// (6) Add API versioning
-builder.AddDefaultApiVersioning();
+    builder.Services.AddMemoryCache(options =>
+    {
+        options.SizeLimit = 1024;
+    });
 
-// (7) Add controllers
-builder.Services.AddControllers();
+    // Add IAM Client
+    builder.AddIAMServiceClient("notification");
 
-// Add OpenAPI
-builder.AddStandardOpenApi(
-    title: "MALIEV Notification Service API",
-    description: "Centralized notification service for the Maliev platform. Handles multi-channel message delivery (Email, LINE, WhatsApp, SMS, Slack) with template management, priority routing, and automatic retry logic.");
+    // Add custom metrics meter
+    builder.AddServiceMeters("notifications-meter");
 
-// NOTE: ServiceDefaults already configures:
-// - OpenAPI/Scalar via AddServiceDefaults()
-// - Health checks for PostgreSQL, Redis (via AddPostgresDbContext, AddRedisDistributedCache)
-// - OpenTelemetry metrics, tracing, logging
-// - Standard resilience patterns for HttpClients
+    // (3) Add PostgreSQL DbContext
+    builder.AddPostgresDbContext<NotificationDbContext>(connectionName: "NotificationDbContext");
 
-var app = builder.Build();
+    // (4) Add Redis connection (via ServiceDefaults)
+    builder.AddRedisDistributedCache(instanceName: "notification:");
 
-// Add standard middleware
-app.UseStandardMiddleware();
-app.UseCors();
+    // Add JWT Authentication and Permission Authorization
+    builder.AddJwtAuthentication();
+    builder.Services.AddPermissionAuthorization();
 
-// Enable Authentication and Authorization
-app.UseAuthentication();
-app.UseAuthorization();
+    // (4a) Register notification services
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IDeduplicationService,
+        Maliev.NotificationService.Api.Services.DeduplicationService>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Services.INotificationRouter,
+        Maliev.NotificationService.Api.Services.NotificationRouter>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IRetryService,
+        Maliev.NotificationService.Api.Services.RetryService>();
+    builder.Services.AddSingleton<Maliev.NotificationService.Api.Services.ITemplateRenderer,
+        Maliev.NotificationService.Api.Services.TemplateRenderer>();
+    builder.Services.AddSingleton<Maliev.NotificationService.Api.Services.IEncryptionService,
+        Maliev.NotificationService.Api.Services.EncryptionService>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IAlertingService,
+        Maliev.NotificationService.Api.Services.AlertingService>();
 
-// Map ServiceDefaults endpoints (/health, /liveness, /readiness, /metrics)
-app.MapDefaultEndpoints("notification");
+    // (4aa) Register background services
+    builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.DeliveryLogCleanupService>();
+    builder.Services.AddHostedService<Maliev.NotificationService.Api.Services.RetryCleanupBackgroundService>();
+    builder.Services.AddIAMRegistration<Maliev.NotificationService.Api.Authorization.NotificationIAMRegistration>("notification");
 
-// Map OpenAPI and Scalar documentation (dev/staging only)
-app.MapApiDocumentation(servicePrefix: "notification");
+    // (4b) Register channel providers
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.EmailProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.LineProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.WhatsAppProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.SmsProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.SlackProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.FacebookMessengerProvider>();
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.InstagramProvider>();
 
-app.MapControllers();
+    // (4c) Register channel provider factory
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Services.ChannelProviderFactory>();
 
-// Run database migrations and seeding asynchronously (non-blocking)
-// Create logger instance within this scope
-var logger = app.Services.GetRequiredService<ILogger<Program>>(); // Get logger from app services
+    // (4d) Configure HttpClient for channel providers
+    builder.Services.AddHttpClient("WhatsApp", client =>
+    {
+        client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
+        client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
+    })
+    .AddStandardResilienceHandler(); // From ServiceDefaults - includes retry, timeout, circuit breaker
 
-await app.MigrateDatabaseAsync<NotificationDbContext>();
+    builder.Services.AddHttpClient("Line", client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["ApiBaseAddresses:LINE"] ?? "https://api.line.me/v2/bot");
+    })
+    .AddStandardResilienceHandler();
 
-using var scope = app.Services.CreateScope();
-var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    builder.Services.AddHttpClient("Facebook", client =>
+    {
+        client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
+        client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
+    })
+    .AddStandardResilienceHandler();
 
-await SeedDefaultTemplatesAsync(dbContext, logger);
-logger.LogInformation("Database seeding completed successfully");
+    builder.Services.AddHttpClient("Instagram", client =>
+    {
+        client.BaseAddress = new Uri("https://graph.facebook.com/v18.0/");
+        client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
+    })
+    .AddStandardResilienceHandler();
 
-// Initialize metrics (non-blocking)
-InitializeMetrics(app.Services);
+    builder.Services.AddHttpClient("Alerting", client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(10);
+        client.DefaultRequestHeaders.Add("User-Agent", "Maliev.NotificationService/1.0");
+    })
+    .AddStandardResilienceHandler();
 
-await app.RunAsync();
+    // (4e) Add rate limiting for channel providers using TokenBucketRateLimiter
+    builder.Services.AddRateLimiter(options =>
+    {
+        // LINE provider: 1000 token limit, 10 tokens per second
+        options.AddPolicy("LineProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("line", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 1000,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 10,
+                AutoReplenishment = true
+            }));
+
+        // WhatsApp provider: 80 token limit, 80 tokens per second
+        options.AddPolicy("WhatsAppProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("whatsapp", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 80,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 80,
+                AutoReplenishment = true
+            }));
+
+        // Email provider: 100 token limit, 100 tokens per second
+        options.AddPolicy("EmailProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("email", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 100,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 100,
+                AutoReplenishment = true
+            }));
+
+        // SMS/Twilio provider: 100 token limit, 100 tokens per second
+        options.AddPolicy("SmsProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("sms", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 100,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 100,
+                AutoReplenishment = true
+            }));
+
+        // Slack provider: 1 token limit, 1 token per second (Slack has strict rate limits)
+        options.AddPolicy("SlackProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("slack", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 1,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 1,
+                AutoReplenishment = true
+            }));
+
+        // Facebook provider: 200 token limit, 200 tokens per second
+        options.AddPolicy("FacebookProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("facebook", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 200,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 200,
+                AutoReplenishment = true
+            }));
+
+        // Instagram provider: 200 token limit, 200 tokens per second
+        options.AddPolicy("InstagramProvider", context =>
+            RateLimitPartition.GetTokenBucketLimiter("instagram", _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 200,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokensPerPeriod = 200,
+                AutoReplenishment = true
+            }));
+    });
+
+    // (5) Add MassTransit with RabbitMQ using ServiceDefaults
+    builder.AddMassTransitWithRabbitMq(
+        configure: x =>
+        {
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
+
+            // Add RabbitMQ message scheduler for delayed message delivery
+            x.AddDelayedMessageScheduler();
+        },
+        configureRabbitMq: (context, cfg) =>
+        {
+            // Configure delayed message scheduler
+            cfg.UseDelayedMessageScheduler();
+
+            // Receive endpoint for PaymentCompletedEvent
+            cfg.ReceiveEndpoint("notification-payment-completed", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>(context);
+            });
+
+            // Critical notification queue - low prefetch for fast individual processing
+            cfg.ReceiveEndpoint("notification-critical", e =>
+            {
+                e.Bind("maliev.notifications", s =>
+                {
+                    s.RoutingKey = "maliev.notification.v1.*.critical";
+                    s.ExchangeType = "topic";
+                });
+
+                e.PrefetchCount = 10; // Lower prefetch for faster processing
+                e.ConcurrentMessageLimit = 10;
+
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>(context);
+
+                // Retry policy: 3 attempts with exponential backoff (1s, 2s, 4s)
+                e.UseMessageRetry(r => r.Intervals(1000, 2000, 4000));
+            });
+
+            // Standard notification queue - higher prefetch for batch efficiency
+            cfg.ReceiveEndpoint("notification-standard", e =>
+            {
+                e.Bind("maliev.notifications", s =>
+                {
+                    s.RoutingKey = "maliev.notification.v1.*.standard";
+                    s.ExchangeType = "topic";
+                });
+
+                e.PrefetchCount = 50; // Higher prefetch for throughput
+                e.ConcurrentMessageLimit = 50;
+
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>(context);
+
+                // Retry policy: 1 attempt with fixed 5s delay
+                e.UseMessageRetry(r => r.Interval(1, 5000));
+            });
+        });
+
+    // (6) Add API versioning
+    builder.AddDefaultApiVersioning();
+
+    // (7) Add controllers
+    builder.Services.AddControllers();
+
+    // Add OpenAPI
+    builder.AddStandardOpenApi(
+        title: "MALIEV Notification Service API",
+        description: "Centralized notification service for the Maliev platform. Handles multi-channel message delivery (Email, LINE, WhatsApp, SMS, Slack) with template management, priority routing, and automatic retry logic.");
+
+    var app = builder.Build();
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    // Add standard middleware
+    app.UseStandardMiddleware();
+    app.UseCors();
+
+    // Enable Authentication and Authorization
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Map ServiceDefaults endpoints (/health, /liveness, /readiness, /metrics)
+    app.MapDefaultEndpoints("notification");
+
+    // Map OpenAPI and Scalar documentation (dev/staging only)
+    app.MapApiDocumentation(servicePrefix: "notification");
+
+    app.MapControllers();
+
+    // Run database migrations and seeding asynchronously (non-blocking)
+    await app.MigrateDatabaseAsync<NotificationDbContext>();
+
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+
+    await SeedDefaultTemplatesAsync(dbContext, logger);
+    logger.LogInformation("Database seeding completed successfully");
+
+    // Initialize metrics (non-blocking)
+    InitializeMetrics(app.Services);
+
+    logger.LogInformation("Notification Service started successfully");
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    bootstrapLogger.LogCritical(ex, "Notification Service host terminated unexpectedly during startup");
+    throw;
+}
+finally
+{
+    loggerFactory.Dispose();
+}
 
 // <summary>
 // Seeds default notification templates for common scenarios
