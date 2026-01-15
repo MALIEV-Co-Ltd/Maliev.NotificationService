@@ -271,6 +271,19 @@ try
     // Initialize metrics (non-blocking)
     InitializeMetrics(app.Services);
 
+    // Middleware Pipeline
+    app.UseStandardMiddleware();
+    app.UseCors();
+    app.UseRouting();
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Map endpoints
+    app.MapControllers();
+    app.MapDefaultEndpoints(servicePrefix: "notification");
+    app.MapApiDocumentation(servicePrefix: "notification");
+
     Log.ServiceStarted(logger, "Notification Service");
     await app.RunAsync();
 }
