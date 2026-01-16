@@ -17,17 +17,13 @@
     </PackageReference>
 
     <!-- Messaging -->
-    <PackageReference Include="MassTransit.RabbitMQ" Version="9.0.0" />
 
     <!-- API Documentation -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.12.7" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.12.8" />
 
     <!-- Health Checks -->
-    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="9.0.0" />
-    <PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />
-    <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
     <PackageReference Include="brevo_csharp" Version="1.1.1" />
     <PackageReference Include="Twilio" Version="7.14.1" />
   </ItemGroup>
