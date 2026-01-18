@@ -1,9 +1,7 @@
-using MassTransit;
 using Maliev.MessagingContracts.Generated;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;
+using MassTransit;
 
 namespace Maliev.NotificationService.Api.Consumers
 {

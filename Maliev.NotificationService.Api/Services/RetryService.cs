@@ -1,9 +1,9 @@
-using System.Text.Json;
+using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Maliev.MessagingContracts.Generated;
+using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Services;
 
@@ -145,4 +145,3 @@ public class RetryService : IRetryService
         }
     }
 }
-

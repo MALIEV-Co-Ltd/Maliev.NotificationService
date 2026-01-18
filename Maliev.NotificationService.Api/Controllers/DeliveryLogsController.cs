@@ -1,9 +1,9 @@
 using Asp.Versioning;
-using Maliev.NotificationService.Data;
+using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Responses;
-using Maliev.NotificationService.Api.Authorization;
-using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.NotificationService.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -186,16 +186,4 @@ public class DeliveryLogsController : ControllerBase
             return StatusCode(500, new { error = "An error occurred while retrieving the delivery log" });
         }
     }
-}
-
-/// <summary>
-/// Paginated response wrapper.
-/// </summary>
-public class PaginatedResponse<T>
-{
-    public List<T> Items { get; set; } = new();
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-    public int TotalCount { get; set; }
-    public int TotalPages { get; set; }
 }

@@ -1,11 +1,10 @@
+using Maliev.MessagingContracts.Generated;
+using Maliev.NotificationService.Api.Metrics;
+using Maliev.NotificationService.Api.Providers;
+using Maliev.NotificationService.Data;
+using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Text.Json;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Api.Metrics;
-using Maliev.NotificationService.Api.Models.Enums;
-using Maliev.NotificationService.Api.Providers;
-using Microsoft.EntityFrameworkCore;
-using Maliev.MessagingContracts.Generated;
 
 namespace Maliev.NotificationService.Api.Services;
 

@@ -1,6 +1,6 @@
+using Maliev.NotificationService.Api.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
-using Maliev.NotificationService.Api.Models.Enums;
 
 namespace Maliev.NotificationService.Api.Models.Requests;
 

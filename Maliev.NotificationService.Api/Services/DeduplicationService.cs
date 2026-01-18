@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
 using Maliev.NotificationService.Api.Metrics;
 using Microsoft.Extensions.Caching.Distributed;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Maliev.NotificationService.Api.Services;
 

@@ -1,11 +1,11 @@
 using Asp.Versioning;
-using Maliev.NotificationService.Data;
+using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
 using Maliev.NotificationService.Api.Services;
-using Maliev.NotificationService.Api.Authorization;
-using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.NotificationService.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
