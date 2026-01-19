@@ -1,10 +1,10 @@
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
+using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Models.Enums;
 using Maliev.NotificationService.Api.Services;
+using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Data.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Maliev.MessagingContracts.Generated;
 using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Consumers;

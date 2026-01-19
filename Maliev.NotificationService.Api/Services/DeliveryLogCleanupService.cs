@@ -66,7 +66,8 @@ public class DeliveryLogCleanupService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
-    private async Task CleanupDeliveryLogsAsync(object? state)
+    internal async Task CleanupDeliveryLogsAsync(object? state)
+
     {
         try
         {

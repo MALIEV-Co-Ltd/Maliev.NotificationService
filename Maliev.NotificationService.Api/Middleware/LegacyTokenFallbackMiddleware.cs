@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using Maliev.NotificationService.Api.Authorization;
+using System.Security.Claims;
 
 namespace Maliev.NotificationService.Api.Middleware;
 

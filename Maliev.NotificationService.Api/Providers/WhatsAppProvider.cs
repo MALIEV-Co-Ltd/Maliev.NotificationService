@@ -1,9 +1,9 @@
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 using Twilio;
+using Twilio.Exceptions;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
-using Twilio.Exceptions;
 
 namespace Maliev.NotificationService.Api.Providers;
 

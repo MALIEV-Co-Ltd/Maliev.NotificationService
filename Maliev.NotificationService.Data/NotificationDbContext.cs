@@ -1,6 +1,6 @@
+using Maliev.Aspire.ServiceDefaults.Database;
 using Maliev.NotificationService.Data.Entities;
 using Microsoft.EntityFrameworkCore;
-using Maliev.Aspire.ServiceDefaults.Database;
 
 namespace Maliev.NotificationService.Data;
 

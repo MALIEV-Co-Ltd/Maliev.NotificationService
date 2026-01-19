@@ -1,5 +1,3 @@
-using Maliev.NotificationService.Api.Services;
-
 namespace Maliev.NotificationService.Api.Services;
 
 /// <summary>

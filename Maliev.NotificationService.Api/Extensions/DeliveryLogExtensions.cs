@@ -1,5 +1,5 @@
-using Maliev.NotificationService.Data.Entities;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Data.Entities;
 
 namespace Maliev.NotificationService.Api.Extensions;
 
@@ -29,4 +29,3 @@ public static class DeliveryLogExtensions
         };
     }
 }
-

@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
-using System.Threading.RateLimiting;
 using brevo_csharp.Api;
 using brevo_csharp.Client;
 using brevo_csharp.Model;
+using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 using SystemTask = System.Threading.Tasks.Task;
 
 namespace Maliev.NotificationService.Api.Providers;

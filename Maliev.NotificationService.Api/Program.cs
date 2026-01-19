@@ -1,9 +1,8 @@
-using Maliev.NotificationService.Data;
 using Maliev.Aspire.ServiceDefaults;
+using Maliev.NotificationService.Data;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
-using Microsoft.Extensions.Logging;
 using System.Threading.RateLimiting;
 
 // Initialize bootstrap logging
@@ -74,6 +73,14 @@ try
     builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.SlackProvider>();
     builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.FacebookMessengerProvider>();
     builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.InstagramProvider>();
+
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.EmailProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.LineProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.WhatsAppProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.SmsProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.SlackProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.FacebookMessengerProvider>());
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Providers.IChannelProvider>(sp => sp.GetRequiredService<Maliev.NotificationService.Api.Providers.InstagramProvider>());
 
     // (4c) Register channel provider factory
     builder.Services.AddScoped<Maliev.NotificationService.Api.Services.ChannelProviderFactory>();

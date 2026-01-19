@@ -1,7 +1,7 @@
-using Maliev.NotificationService.Data.Entities;
 using Maliev.NotificationService.Api.Models.Enums;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
+using Maliev.NotificationService.Data.Entities;
 
 namespace Maliev.NotificationService.Api.Extensions;
 
@@ -54,4 +54,3 @@ public static class TemplateExtensions
         entity.Parameters = request.Parameters;
     }
 }
-

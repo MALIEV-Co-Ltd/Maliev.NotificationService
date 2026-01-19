@@ -1,5 +1,4 @@
 using Maliev.Aspire.ServiceDefaults.IAM;
-using Maliev.NotificationService.Api.Authorization;
 
 namespace Maliev.NotificationService.Api.Authorization;
 
