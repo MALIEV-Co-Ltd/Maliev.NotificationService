@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 using Maliev.MessagingContracts.Generated;
 
@@ -123,7 +124,15 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         await Task.Delay(TimeSpan.FromSeconds(3));
 
         // Assert
-        // TODO: Verify delivery log shows failure
+        // Verify delivery log shows failure
+        using var assertScope = _factory.Services.CreateScope();
+        var dbContext = assertScope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var logs = await dbContext.DeliveryLogs
+            .Where(l => l.UserId == "invalid_user_999")
+            .ToListAsync();
+        
+        Assert.NotEmpty(logs);
+        Assert.All(logs, l => Assert.Equal("failed", l.Status.ToLower()));
     }
 
     [Fact]

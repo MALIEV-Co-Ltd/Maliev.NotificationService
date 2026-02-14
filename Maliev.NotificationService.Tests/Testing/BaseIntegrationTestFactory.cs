@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using Moq;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
@@ -65,16 +66,13 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlBuilder()
-                    .WithImage("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder().WithName("postgres:18-alpine")
                     .Build();
 
-                _redisContainer = new RedisBuilder()
-                    .WithImage("redis:8.4-alpine")
+                _redisContainer = new RedisBuilder().WithName("redis:8.4-alpine")
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder()
-                    .WithImage("rabbitmq:4.2-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder().WithName("rabbitmq:4.2-alpine")
                     .Build();
 
                 // Start all containers in parallel
@@ -185,6 +183,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         builder.UseSetting("Jwt:SecurityKey", _testJwtKey);
         builder.UseSetting("Encryption:DataProtectionKey", _testEncryptionKey);
         builder.UseSetting("Features:PermissionBasedAuthEnabled", "true"); // IMPORTANT: Enable permission based auth for tests
+        builder.UseSetting("IAM:RegistrationDelaySeconds", "0");
+        builder.UseSetting("Features:FailOpenOnIAMError", "true");
 
         // Export RSA public key for JWT validation
         var rsaParams = _testRsa.ExportParameters(false);
@@ -244,6 +244,12 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
             // Add MassTransit test harness for testing message publishing/consuming
             services.AddMassTransitTestHarness();
+
+            // Mock IIamServiceClient to avoid network calls and retries during tests
+            var mockIamClient = new Moq.Mock<Maliev.Aspire.ServiceDefaults.IAM.IIamServiceClient>();
+            mockIamClient.Setup(x => x.CheckPermissionAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<System.Threading.CancellationToken>()))
+                .ReturnsAsync(false); // Fallback to claims
+            services.AddScoped(_ => mockIamClient.Object);
 
             // Allow derived classes to add additional test services
             ConfigureAdditionalServices(services);
