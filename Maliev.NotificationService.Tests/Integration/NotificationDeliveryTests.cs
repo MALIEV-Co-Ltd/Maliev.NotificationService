@@ -130,7 +130,7 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         var logs = await dbContext.DeliveryLogs
             .Where(l => l.UserId == "invalid_user_999")
             .ToListAsync();
-        
+
         Assert.NotEmpty(logs);
         Assert.All(logs, l => Assert.Equal("failed", l.Status.ToLower()));
     }
