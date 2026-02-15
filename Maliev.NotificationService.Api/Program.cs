@@ -3,8 +3,6 @@ using Maliev.NotificationService.Data;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
-using System.Threading.RateLimiting;
-
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
 var bootstrapLogger = loggerFactory.CreateLogger("Program");
@@ -40,7 +38,7 @@ try
     builder.AddPostgresDbContext<NotificationDbContext>(connectionName: "NotificationDbContext");
 
     // (4) Add Redis connection (via ServiceDefaults)
-    builder.AddRedisDistributedCache(instanceName: "notification:");
+    builder.AddStandardCache("notification:"); // Redis + in-memory fallback, memory-optimized
 
     // Add JWT Authentication and Permission Authorization
     builder.AddJwtAuthentication();
@@ -121,79 +119,7 @@ try
     .AddStandardResilienceHandler();
 
     // (4e) Add rate limiting for channel providers using TokenBucketRateLimiter
-    builder.Services.AddRateLimiter(options =>
-    {
-        // LINE provider: 1000 token limit, 10 tokens per second
-        options.AddPolicy("LineProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("line", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 1000,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 10,
-                AutoReplenishment = true
-            }));
-
-        // WhatsApp provider: 80 token limit, 80 tokens per second
-        options.AddPolicy("WhatsAppProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("whatsapp", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 80,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 80,
-                AutoReplenishment = true
-            }));
-
-        // Email provider: 100 token limit, 100 tokens per second
-        options.AddPolicy("EmailProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("email", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 100,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 100,
-                AutoReplenishment = true
-            }));
-
-        // SMS/Twilio provider: 100 token limit, 100 tokens per second
-        options.AddPolicy("SmsProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("sms", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 100,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 100,
-                AutoReplenishment = true
-            }));
-
-        // Slack provider: 1 token limit, 1 token per second (Slack has strict rate limits)
-        options.AddPolicy("SlackProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("slack", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 1,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 1,
-                AutoReplenishment = true
-            }));
-
-        // Facebook provider: 200 token limit, 200 tokens per second
-        options.AddPolicy("FacebookProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("facebook", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 200,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 200,
-                AutoReplenishment = true
-            }));
-
-        // Instagram provider: 200 token limit, 200 tokens per second
-        options.AddPolicy("InstagramProvider", context =>
-            RateLimitPartition.GetTokenBucketLimiter("instagram", _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = 200,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                TokensPerPeriod = 200,
-                AutoReplenishment = true
-            }));
-    });
-
+    builder.AddStandardRateLimiting(); // Memory-optimized for low-spec nodes
     // (5) Add MassTransit with RabbitMQ using ServiceDefaults
     builder.AddMassTransitWithRabbitMq(
         configure: x =>

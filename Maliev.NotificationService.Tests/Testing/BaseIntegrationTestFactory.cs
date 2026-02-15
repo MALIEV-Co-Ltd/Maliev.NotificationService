@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
@@ -57,6 +58,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
         // Set environment variable EARLY so Program.cs picks it up during WebApplication.CreateBuilder
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        Environment.SetEnvironmentVariable("CORS__AllowedOrigins__0", "http://localhost:3000");
+        Environment.SetEnvironmentVariable("CORS_ALLOWED_ORIGINS", "http://localhost:3000");
     }
 
     public async Task InitializeAsync()
@@ -75,185 +78,374 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
                 _rabbitmqContainer = new RabbitMqBuilder().WithImage("rabbitmq:4.2-alpine")
                     .Build();
 
+
+
                 // Start all containers in parallel
+
                 await Task.WhenAll(
+
                     _postgresContainer.StartAsync(),
+
                     _redisContainer.StartAsync(),
+
                     _rabbitmqContainer.StartAsync()
+
                 );
 
+
+
                 // Ensure PostgreSQL is fully ready and accepting connections
+
                 var postgresReady = false;
+
                 var retryCount = 0;
+
                 const int maxRetries = 60;
+
                 while (!postgresReady && retryCount < maxRetries)
+
                 {
+
                     try
+
                     {
+
                         await using var conn = new Npgsql.NpgsqlConnection(_postgresContainer.GetConnectionString());
+
                         await conn.OpenAsync();
+
                         await using var cmd = conn.CreateCommand();
+
                         cmd.CommandText = "SELECT 1";
+
                         await cmd.ExecuteScalarAsync();
+
                         postgresReady = true;
+
                     }
+
                     catch
+
                     {
+
                         retryCount++;
+
                         await Task.Delay(1000);
+
                     }
+
                 }
+
+
 
                 if (!postgresReady)
+
                 {
+
                     throw new InvalidOperationException("PostgreSQL Testcontainer failed to become ready (Ping failed) after 60 seconds.");
+
                 }
+
+
 
                 // Wait for Redis to be ready
+
                 using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
+
                 {
+
                     await connection.GetDatabase().PingAsync();
+
                 }
+
+
 
                 // Apply database migrations
+
                 await ApplyMigrationsAsync();
 
+
+
                 _containersStarted = true;
+
             }
+
         }
+
         finally
+
         {
+
             _initLock.Release();
+
         }
+
+
 
         // Set environment variables immediately after containers start
+
         Environment.SetEnvironmentVariable($"ConnectionStrings__{DbConnectionStringName}", _postgresContainer!.GetConnectionString());
+
         Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer!.GetConnectionString());
+
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer!.GetConnectionString());
+
     }
+
+
 
     public new async Task DisposeAsync()
+
     {
+
         // Explicitly stop MassTransit bus if it was started
+
         if (Services != null)
+
         {
+
             try
+
             {
+
                 var busControl = Services.GetService<IBusControl>();
+
                 if (busControl != null)
+
                 {
+
                     await busControl.StopAsync();
+
                 }
+
             }
+
             catch (Exception)
+
             {
+
                 // Ignore errors during bus stop
+
             }
+
         }
 
+
+
         // Static containers are NOT disposed here to allow reuse across tests
+
         _testRsa.Dispose();
+
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null); // Cleanup
+
         await base.DisposeAsync();
+
     }
+
+
+
 
 
     protected override IHost CreateHost(IHostBuilder builder)
+
     {
+
         // Ensure containers are started before creating host
+
         if (!_containersStarted)
+
         {
+
             InitializeAsync().GetAwaiter().GetResult();
+
         }
 
+
+
+        // Export RSA public key for JWT validation in PEM format
+
+        var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
+
+        var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
+
+        Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
+
+        Environment.SetEnvironmentVariable("Jwt:PublicKey", publicKeyBase64);
+
+
+
         // Allow derived classes to set environment variables if absolutely necessary
+
         ConfigureEnvironmentVariables();
 
+
+
         return base.CreateHost(builder);
+
     }
 
+
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
+
     {
+
         // Use UseSetting to provide configuration early enough for Program.cs
+
         builder.UseSetting($"ConnectionStrings:{DbConnectionStringName}", _postgresContainer!.GetConnectionString());
+
         builder.UseSetting("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+
         builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
+
         builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Testing");
+
         builder.UseSetting("IAM:BaseUrl", "http://localhost:8080");
+
         builder.UseSetting("Jwt:SecurityKey", _testJwtKey);
+
         builder.UseSetting("Encryption:DataProtectionKey", _testEncryptionKey);
+
         builder.UseSetting("Features:PermissionBasedAuthEnabled", "true"); // IMPORTANT: Enable permission based auth for tests
+
         builder.UseSetting("IAM:RegistrationDelaySeconds", "0");
+
         builder.UseSetting("Features:FailOpenOnIAMError", "true");
 
-        // Export RSA public key for JWT validation
-        var rsaParams = _testRsa.ExportParameters(false);
-        builder.UseSetting("JWT_PUBLIC_KEY_MODULUS", Convert.ToBase64String(rsaParams.Modulus!));
-        builder.UseSetting("JWT_PUBLIC_KEY_EXPONENT", Convert.ToBase64String(rsaParams.Exponent!));
+        builder.UseSetting("RateLimiting:PermitLimit", "10000");
+
+        builder.UseSetting("RateLimiting:WindowMinutes", "1");
+
+        builder.UseSetting("Logging:EventLog:LogLevel:Default", "None");
+
+
 
         builder.ConfigureTestServices(services =>
+
+{
+
+    // Configure JWT Bearer authentication with test RSA key
+
+    services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
+
+    {
+
+        // Disable claim type mapping to keep original claim names
+
+        options.MapInboundClaims = false;
+
+
+
+        options.TokenValidationParameters = new TokenValidationParameters
+
         {
-            // Configure JWT Bearer authentication with test RSA key
-            services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
+
+            ValidateIssuer = true,
+
+            ValidateAudience = true,
+
+            ValidateLifetime = true,
+
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = "test-issuer",
+
+            ValidAudience = "test-audience",
+
+            IssuerSigningKey = new RsaSecurityKey(_testRsa),
+
+            ClockSkew = TimeSpan.Zero, // No clock skew for tests
+
+            NameClaimType = JwtRegisteredClaimNames.Sub, // Use "sub" claim as name identifier
+
+            RoleClaimType = "role" // Use "role" claim for roles
+
+        };
+
+
+
+        // Add event to transform claims after token validation
+
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+
+        {
+
+            OnTokenValidated = context =>
+
             {
-                // Disable claim type mapping to keep original claim names
-                options.MapInboundClaims = false;
 
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = "test-issuer",
-                    ValidAudience = "test-audience",
-                    IssuerSigningKey = new RsaSecurityKey(_testRsa),
-                    ClockSkew = TimeSpan.Zero, // No clock skew for tests
-                    NameClaimType = JwtRegisteredClaimNames.Sub, // Use "sub" claim as name identifier
-                    RoleClaimType = "role" // Use "role" claim for roles
-                };
+                if (context.Principal?.Identity is ClaimsIdentity identity)
 
-                // Add event to transform claims after token validation
-                options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
                 {
-                    OnTokenValidated = context =>
+
+                    // Add ClaimTypes.NameIdentifier claim from "sub"
+
+                    var subClaim = identity.FindFirst(JwtRegisteredClaimNames.Sub);
+
+                    if (subClaim != null && !identity.HasClaim(c => c.Type == ClaimTypes.NameIdentifier))
+
                     {
-                        if (context.Principal?.Identity is ClaimsIdentity identity)
-                        {
-                            // Add ClaimTypes.NameIdentifier claim from "sub"
-                            var subClaim = identity.FindFirst(JwtRegisteredClaimNames.Sub);
-                            if (subClaim != null && !identity.HasClaim(c => c.Type == ClaimTypes.NameIdentifier))
-                            {
-                                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, subClaim.Value));
-                            }
 
-                            // Add ClaimTypes.Role claims from "role"
-                            var roleClaims = identity.FindAll("role").ToList();
-                            foreach (var roleClaim in roleClaims)
-                            {
-                                if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == roleClaim.Value))
-                                {
-                                    identity.AddClaim(new Claim(ClaimTypes.Role, roleClaim.Value));
-                                }
-                            }
-                        }
-                        return Task.CompletedTask;
+                        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, subClaim.Value));
+
                     }
-                };
-            });
 
-            // Add MassTransit test harness for testing message publishing/consuming
-            services.AddMassTransitTestHarness();
 
-            // Mock IIamServiceClient to avoid network calls and retries during tests
-            var mockIamClient = new Moq.Mock<Maliev.Aspire.ServiceDefaults.IAM.IIamServiceClient>();
-            mockIamClient.Setup(x => x.CheckPermissionAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<System.Threading.CancellationToken>()))
-                .ReturnsAsync(false); // Fallback to claims
-            services.AddScoped(_ => mockIamClient.Object);
 
-            // Allow derived classes to add additional test services
-            ConfigureAdditionalServices(services);
-        });
+                    // Add ClaimTypes.Role claims from "role"
+
+                    var roleClaims = identity.FindAll("role").ToList();
+
+                    foreach (var roleClaim in roleClaims)
+
+                    {
+
+                        if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == roleClaim.Value))
+
+                        {
+
+                            identity.AddClaim(new Claim(ClaimTypes.Role, roleClaim.Value));
+
+                        }
+
+                    }
+
+                }
+
+                return Task.CompletedTask;
+
+            }
+
+        };
+
+    });
+
+
+
+    // Add MassTransit test harness for testing message publishing/consuming
+
+    services.AddMassTransitTestHarness();
+
+
+
+    // Mock IIamServiceClient to avoid network calls and retries during tests
+
+    var mockIamClient = new Moq.Mock<Maliev.Aspire.ServiceDefaults.IAM.IIamServiceClient>();
+
+    mockIamClient.Setup(x => x.CheckPermissionAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<System.Threading.CancellationToken>()))
+
+        .ReturnsAsync(false); // Fallback to claims
+
+    services.AddScoped(_ => mockIamClient.Object);
+
+
+
+    // Allow derived classes to add additional test services
+
+    ConfigureAdditionalServices(services);
+
+});
+
     }
 
     /// <summary>
