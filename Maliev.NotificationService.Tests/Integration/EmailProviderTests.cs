@@ -45,4 +45,59 @@ public class EmailProviderTests
         Assert.True(result.Success);
         Assert.StartsWith("email_simulated_", result.MessageId);
     }
+
+    [Fact]
+    public async Task GetHealthAsync_NotConfigured_ReturnsFalse()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var provider = new EmailProvider(_mockLogger.Object, configuration);
+
+        var result = await provider.GetHealthAsync(CancellationToken.None);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void ChannelType_IsEmail()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var provider = new EmailProvider(_mockLogger.Object, configuration);
+
+        Assert.Equal("email", provider.ChannelType);
+    }
+
+    [Fact]
+    public async Task ValidateRecipientAsync_EmptyEmail_ReturnsInvalid()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var provider = new EmailProvider(_mockLogger.Object, configuration);
+
+        var result = await provider.ValidateRecipientAsync("", CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("required", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ValidateRecipientAsync_InvalidFormat_ReturnsInvalid()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var provider = new EmailProvider(_mockLogger.Object, configuration);
+
+        var result = await provider.ValidateRecipientAsync("not-an-email", CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Invalid", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ValidateRecipientAsync_ValidEmail_ReturnsValid()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var provider = new EmailProvider(_mockLogger.Object, configuration);
+
+        var result = await provider.ValidateRecipientAsync("user@example.com", CancellationToken.None);
+
+        Assert.True(result.IsValid);
+    }
 }

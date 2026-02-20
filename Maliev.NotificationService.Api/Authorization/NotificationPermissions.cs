@@ -21,6 +21,8 @@ public static class NotificationPermissions
     public const string TemplatesRead = "notification.templates.read";
     /// <summary>Permission to update templates.</summary>
     public const string TemplatesUpdate = "notification.templates.update";
+    /// <summary>Permission to delete templates.</summary>
+    public const string TemplatesDelete = "notification.templates.delete";
 
     // Channel/Binding Operations
     /// <summary>Permission to configure notification channels.</summary>
@@ -61,6 +63,7 @@ public static class NotificationPermissions
         { TemplatesCreate, "Create notification templates" },
         { TemplatesRead, "Read notification templates" },
         { TemplatesUpdate, "Update notification templates" },
+        { TemplatesDelete, "Delete notification templates" },
         { ConfigureChannels, "Configure communication channels and providers" },
         { BindingsCreate, "Create channel bindings" },
         { BindingsRead, "Read channel bindings" },

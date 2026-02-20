@@ -137,4 +137,35 @@ public class DeduplicationServiceTests
         // Assert
         Assert.False(isDuplicate); // Fail open: allow notification through if cache is unavailable
     }
+
+    [Fact]
+    public async Task ClearCacheEntryAsync_Success_RemovesFromCache()
+    {
+        var mockCache = new Mock<IDistributedCache>();
+        var mockLogger = new Mock<ILogger<DeduplicationService>>();
+
+        var service = new DeduplicationService(mockCache.Object, mockLogger.Object);
+
+        var eventId = Guid.NewGuid().ToString();
+        var timestamp = DateTimeOffset.UtcNow;
+
+        await service.ClearCacheEntryAsync(eventId, timestamp, CancellationToken.None);
+
+        mockCache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ClearCacheEntryAsync_CacheThrows_Rethrows()
+    {
+        var mockCache = new Mock<IDistributedCache>();
+        var mockLogger = new Mock<ILogger<DeduplicationService>>();
+
+        mockCache.Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Cache error"));
+
+        var service = new DeduplicationService(mockCache.Object, mockLogger.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ClearCacheEntryAsync("evt_fail", DateTimeOffset.UtcNow, CancellationToken.None));
+    }
 }

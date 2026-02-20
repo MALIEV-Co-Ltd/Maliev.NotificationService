@@ -127,4 +127,72 @@ public class TemplatesController : ControllerBase
 
         return Ok(template.ToResponse());
     }
+
+    /// <summary>
+    /// Gets all notification templates with optional filtering and pagination
+    /// </summary>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
+    /// <param name="filter">Search filter for TemplateKey</param>
+    /// <returns>Paginated template responses</returns>
+    [HttpGet]
+    [RequirePermission(NotificationPermissions.TemplatesRead)]
+    [ProducesResponseType(typeof(PaginatedResponse<TemplateResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTemplates(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? filter = null)
+    {
+        var query = _dbContext.NotificationTemplates.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            query = query.Where(t => t.TemplateKey.Contains(filter));
+        }
+
+        var totalCount = await query.CountAsync();
+        var templates = await query
+            .OrderBy(t => t.TemplateKey)
+            .ThenByDescending(t => t.Version)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var responses = templates.Select(t => t.ToResponse()).ToList();
+
+        return Ok(new PaginatedResponse<TemplateResponse>
+        {
+            Items = responses,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        });
+    }
+
+    /// <summary>
+    /// Deletes a notification template
+    /// </summary>
+    /// <param name="id">Template ID</param>
+    /// <returns>No content on success</returns>
+    [HttpDelete("{id}")]
+    [RequirePermission(NotificationPermissions.TemplatesDelete)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteTemplate(Guid id)
+    {
+        var template = await _dbContext.NotificationTemplates.FindAsync(id);
+
+        if (template == null)
+        {
+            return NotFound(new { error = "Template not found" });
+        }
+
+        _dbContext.NotificationTemplates.Remove(template);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Deleted template {Id}", id);
+
+        return NoContent();
+    }
 }

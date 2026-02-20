@@ -126,6 +126,8 @@ try
         {
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>();
 
             // Add RabbitMQ message scheduler for delayed message delivery
             x.AddDelayedMessageScheduler();
@@ -139,6 +141,13 @@ try
             cfg.ReceiveEndpoint("notification-payment-completed", e =>
             {
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>(context);
+            });
+
+            // Receive endpoint for Customer events
+            cfg.ReceiveEndpoint("notification-customer-events", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>(context);
             });
 
             // Critical notification queue - low prefetch for fast individual processing
