@@ -1,3 +1,4 @@
+using Maliev.MessagingContracts.Contracts.Customers;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Consumers;
 using Maliev.NotificationService.Data;

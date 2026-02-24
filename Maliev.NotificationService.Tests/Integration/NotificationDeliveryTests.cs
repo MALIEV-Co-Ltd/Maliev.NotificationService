@@ -4,6 +4,7 @@ using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Generated;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;

@@ -1,6 +1,7 @@
 using Moq;
 using Xunit;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.MessagingContracts.Contracts.Payments;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Consumers;
 using Maliev.NotificationService.Data;

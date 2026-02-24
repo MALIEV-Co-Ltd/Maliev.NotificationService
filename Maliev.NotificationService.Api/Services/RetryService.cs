@@ -1,3 +1,4 @@
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Data.Entities;

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Maliev.MessagingContracts.Contracts.Iam;
+using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Tests.Integration;
 using Maliev.NotificationService.Api.Tests.TestHelpers;
@@ -38,10 +40,10 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         var harness = clientFactory.Services.GetRequiredService<MassTransit.Testing.ITestHarness>();
 
         // Assert
-        Assert.True(await harness.Published.Any<Maliev.MessagingContracts.Generated.PermissionRegistrationRequest>(
+        Assert.True(await harness.Published.Any<PermissionRegistrationRequest>(
             x => x.Context.Message.ServiceName == "notification"), "Should publish permission registration request");
 
-        var registrationRequest = harness.Published.Select<Maliev.MessagingContracts.Generated.PermissionRegistrationRequest>()
+        var registrationRequest = harness.Published.Select<PermissionRegistrationRequest>()
             .First(x => x.Context.Message.ServiceName == "notification").Context.Message;
 
         Assert.Equal(NotificationPermissions.All.Count, registrationRequest.Permissions.Count);
