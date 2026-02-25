@@ -214,7 +214,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
-        var consumer = new CustomerUpdatedEventConsumer(context, logger);
+        var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
@@ -253,7 +254,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
-        var consumer = new CustomerUpdatedEventConsumer(context, logger);
+        var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
@@ -292,7 +294,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
-        var consumer = new CustomerUpdatedEventConsumer(context, logger);
+        var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
 
         var customerId = Guid.NewGuid();
         // Use a non-JsonElement type for UpdatedFields to trigger InvalidCastException
@@ -333,7 +336,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
-        var consumer = new CustomerUpdatedEventConsumer(context, logger);
+        var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
 
         var customerId = Guid.NewGuid();
         var updatedFields = JsonDocument.Parse("{\"email\":\"new@example.com\"}").RootElement;
@@ -355,7 +359,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
-        var consumer = new CustomerUpdatedEventConsumer(context, logger);
+        var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();

@@ -44,6 +44,9 @@ try
     builder.AddJwtAuthentication();
     builder.Services.AddPermissionAuthorization();
 
+    // Add Customer Service Client
+    builder.AddNotificationCustomerServiceClient();
+
     // (4a) Register notification services
     builder.Services.AddScoped<Maliev.NotificationService.Api.Services.IDeduplicationService,
         Maliev.NotificationService.Api.Services.DeduplicationService>();

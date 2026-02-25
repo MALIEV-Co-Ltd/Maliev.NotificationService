@@ -6,6 +6,7 @@ using Maliev.NotificationService.Data;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using Maliev.NotificationService.Api.Services.External;
 
 namespace Maliev.NotificationService.Api.Consumers;
 
@@ -15,11 +16,16 @@ namespace Maliev.NotificationService.Api.Consumers;
 public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
 {
     private readonly NotificationDbContext _context;
+    private readonly ICustomerServiceClient _customerServiceClient;
     private readonly ILogger<CustomerUpdatedEventConsumer> _logger;
 
-    public CustomerUpdatedEventConsumer(NotificationDbContext context, ILogger<CustomerUpdatedEventConsumer> logger)
+    public CustomerUpdatedEventConsumer(
+        NotificationDbContext context,
+        ICustomerServiceClient customerServiceClient,
+        ILogger<CustomerUpdatedEventConsumer> logger)
     {
         _context = context;
+        _customerServiceClient = customerServiceClient;
         _logger = logger;
     }
 
@@ -47,16 +53,19 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
             return;
         }
 
+        // Try to find the PrincipalId from the Customer Service to ensure bindings are updated
+        var customerDto = await _customerServiceClient.GetCustomerByIdAsync(message.CustomerId, context.CancellationToken);
+        var principalId = customerDto?.PrincipalId.ToString();
+
         // Update Email Binding
         if (updatedFields.TryGetProperty("email", out var emailElement) && emailElement.ValueKind == JsonValueKind.String)
         {
             var newEmail = emailElement.GetString();
             if (!string.IsNullOrWhiteSpace(newEmail))
             {
-                // We'll try to find by UserId = customerId.
-                // TODO: Handle PrincipalId mapping if needed.
                 var emailBinding = await _context.ChannelBindings
-                    .FirstOrDefaultAsync(b => b.UserId == customerId && b.ChannelType == ChannelType.Email.ToString().ToLowerInvariant());
+                    .FirstOrDefaultAsync(b => (b.UserId == customerId || (principalId != null && b.UserId == principalId))
+                                           && b.ChannelType == ChannelType.Email.ToString().ToLowerInvariant());
 
                 if (emailBinding != null)
                 {
@@ -64,12 +73,8 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
                     {
                         emailBinding.ChannelIdentifier = newEmail;
                         emailBinding.IsValid = false; // Re-verification needed
-                        // InvalidatedAt is not set, just valid=false
-                        // Or we can set InvalidatedReason
                     }
                 }
-                // We don't create new bindings on update if they don't exist, only update existing.
-                // Or maybe we should?
             }
         }
 
@@ -81,7 +86,8 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
             if (!string.IsNullOrWhiteSpace(newMobile))
             {
                 var smsBinding = await _context.ChannelBindings
-                    .FirstOrDefaultAsync(b => b.UserId == customerId && b.ChannelType == ChannelType.Sms.ToString().ToLowerInvariant());
+                    .FirstOrDefaultAsync(b => (b.UserId == customerId || (principalId != null && b.UserId == principalId))
+                                           && b.ChannelType == ChannelType.Sms.ToString().ToLowerInvariant());
 
                 if (smsBinding != null)
                 {
