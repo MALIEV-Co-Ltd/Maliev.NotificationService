@@ -1,4 +1,5 @@
 using Maliev.Aspire.ServiceDefaults;
+using Maliev.NotificationService.Api.Configuration;
 using Maliev.NotificationService.Data;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ try
 
     // (2) Add ServiceDefaults immediately after (includes OpenTelemetry, health checks, Redis, etc.)
     builder.AddServiceDefaults();
+    builder.AddDefaultApiVersioning();
     builder.AddStandardMiddleware(options =>
     {
         options.EnableRequestLogging = true;
@@ -27,6 +29,10 @@ try
     {
         options.SizeLimit = 1024;
     });
+
+    // Register options for external providers
+    builder.Services.Configure<ExternalProvidersOptions>(
+        builder.Configuration.GetSection(ExternalProvidersOptions.SectionName));
 
     // Add IAM Client
     builder.AddIAMServiceClient("notification");

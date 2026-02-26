@@ -17,9 +17,8 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing channel bindings
 /// </summary>
 [ApiController]
-[ApiVersion("1")]
+[ApiVersion("1.0")]
 [Route("notification/v{version:apiVersion}/channel-bindings")]
-[Authorize]
 public class ChannelBindingsController : ControllerBase
 {
     private readonly NotificationDbContext _dbContext;
@@ -91,9 +90,10 @@ public class ChannelBindingsController : ControllerBase
             request.ChannelType);
 
         var response = binding.ToResponse(_encryptionService);
+        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
         return CreatedAtAction(
             nameof(GetChannelBinding),
-            new { id = binding.Id },
+            new { id = binding.Id, version = apiVersion },
             response);
     }
 

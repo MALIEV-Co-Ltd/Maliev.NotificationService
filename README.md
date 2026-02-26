@@ -80,7 +80,25 @@ $env:ConnectionStrings__NotificationDbContext="YOUR_POSTGRES_CONNECTION_STRING"
 $env:ConnectionStrings__Cache="YOUR_REDIS_CONNECTION_STRING"
 ```
 
-4. **Apply Migrations & Run**
+4. **Configure Secrets (Local Development)**
+The Notification Service requires several API tokens for its delivery providers. These should be managed via [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) during local development.
+
+Initialize and set the required placeholders:
+```bash
+cd Maliev.NotificationService.Api
+dotnet user-secrets init
+
+# Set actual values for the providers you intend to use:
+dotnet user-secrets set "ExternalProviders:Facebook:PageAccessToken" "YOUR_TOKEN"
+dotnet user-secrets set "ExternalProviders:Instagram:PageAccessToken" "YOUR_TOKEN"
+dotnet user-secrets set "Twilio:AccountSid" "YOUR_SID"
+dotnet user-secrets set "Twilio:AuthToken" "YOUR_AUTH_TOKEN"
+dotnet user-secrets set "Slack:BotToken" "YOUR_TOKEN"
+dotnet user-secrets set "LINE:ChannelAccessToken" "YOUR_TOKEN"
+dotnet user-secrets set "Brevo:ApiKey" "YOUR_API_KEY"
+```
+
+5. **Apply Migrations & Run**
 ```bash
 dotnet ef database update --project Maliev.NotificationService.Api
 dotnet run --project Maliev.NotificationService.Api

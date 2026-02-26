@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.*-*</SharedLibraryVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,10 +29,16 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">
     <ProjectReference Include="..\Maliev.NotificationService.Api\Maliev.NotificationService.Api.csproj" />
     <ProjectReference Include="..\..\Maliev.Aspire\Maliev.Aspire.ServiceDefaults\Maliev.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Maliev.MessagingContracts\generated\csharp\Maliev.MessagingContracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ProjectReference Include="..\Maliev.NotificationService.Api\Maliev.NotificationService.Api.csproj" />
+    <PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="$(SharedLibraryVersion)" />
+    <PackageReference Include="Maliev.MessagingContracts" Version="$(SharedLibraryVersion)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,4 +46,3 @@
   </ItemGroup>
 
 </Project>
-

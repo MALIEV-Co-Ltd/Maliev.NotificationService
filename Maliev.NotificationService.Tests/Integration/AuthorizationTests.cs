@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Maliev.MessagingContracts.Contracts.Iam;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Tests.Integration;
