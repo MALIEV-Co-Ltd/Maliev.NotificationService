@@ -33,16 +33,21 @@ jobs:
           dotnet-version: "10.x"
 
       - name: Restore dependencies
-        run: dotnet restore ${{ inputs.solution_file }} -p:GITHUB_ACTIONS=true ${{ inputs.extra_args }}
+        run: dotnet restore ${{ inputs.solution_file }} ${{ inputs.extra_args }}
         working-directory: service
         env:
           NUGET_USERNAME: ${{ github.actor }}
           NUGET_PASSWORD: ${{ secrets.gitops_pat }}
+          GITHUB_ACTIONS: true
 
       - name: Build
-        run: dotnet build ${{ inputs.solution_file }} --no-restore --configuration ${{ inputs.configuration }} -p:GITHUB_ACTIONS=true ${{ inputs.extra_args }}
+        run: dotnet build ${{ inputs.solution_file }} --no-restore --configuration ${{ inputs.configuration }} ${{ inputs.extra_args }}
         working-directory: service
+        env:
+          GITHUB_ACTIONS: true
 
       - name: Test
-        run: dotnet test ${{ inputs.solution_file }} --no-build --configuration ${{ inputs.configuration }} --verbosity normal -p:GITHUB_ACTIONS=true ${{ inputs.extra_args }}
+        run: dotnet test ${{ inputs.solution_file }} --no-build --configuration ${{ inputs.configuration }} --verbosity normal ${{ inputs.extra_args }}
         working-directory: service
+        env:
+          GITHUB_ACTIONS: true
