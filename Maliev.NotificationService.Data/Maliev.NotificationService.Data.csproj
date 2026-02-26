@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.*-*</SharedLibraryVersion>
+    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.0-*</SharedLibraryVersion>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">

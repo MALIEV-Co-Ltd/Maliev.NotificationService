@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.*-*</SharedLibraryVersion>
+    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.0-*</SharedLibraryVersion>
     <UserSecretsId>0ecbe87f-74b6-495d-8f6b-4bc800bfb080</UserSecretsId>
   </PropertyGroup>
 

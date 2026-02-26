@@ -1,6 +1,8 @@
 using Maliev.NotificationService.Api.Providers;
+using Maliev.NotificationService.Api.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -10,13 +12,17 @@ public class FacebookMessengerProviderTests
 {
     private readonly FacebookMessengerProvider _provider;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
-    private readonly Mock<IConfiguration> _configMock;
+    private readonly ExternalProvidersOptions _options;
     private readonly MockHttpMessageHandler _httpMessageHandler;
 
     public FacebookMessengerProviderTests()
     {
-        _configMock = new Mock<IConfiguration>();
-        _configMock.Setup(x => x["ExternalProviders:Facebook:PageAccessToken"]).Returns("test-token");
+        _options = new ExternalProvidersOptions
+        {
+            Facebook = new FacebookOptions { PageAccessToken = "test-token" }
+        };
+        var optionsMock = new Mock<IOptions<ExternalProvidersOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(_options);
 
         var logger = new Mock<ILogger<FacebookMessengerProvider>>();
 
@@ -29,7 +35,7 @@ public class FacebookMessengerProviderTests
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _httpClientFactoryMock.Setup(x => x.CreateClient("Facebook")).Returns(httpClient);
 
-        _provider = new FacebookMessengerProvider(logger.Object, _configMock.Object, _httpClientFactoryMock.Object);
+        _provider = new FacebookMessengerProvider(logger.Object, _httpClientFactoryMock.Object, optionsMock.Object);
     }
 
     [Fact]
@@ -106,10 +112,12 @@ public class FacebookMessengerProviderTests
     public async Task SendAsync_NotConfigured_ReturnsSimulatedSuccess()
     {
         // Arrange
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(x => x["ExternalProviders:Facebook:PageAccessToken"]).Returns((string?)null);
+        var emptyOptions = new ExternalProvidersOptions();
+        var optionsMock = new Mock<IOptions<ExternalProvidersOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(emptyOptions);
+
         var logger = new Mock<ILogger<FacebookMessengerProvider>>();
-        var provider = new FacebookMessengerProvider(logger.Object, configMock.Object, _httpClientFactoryMock.Object);
+        var provider = new FacebookMessengerProvider(logger.Object, _httpClientFactoryMock.Object, optionsMock.Object);
 
         // Act
         var result = await provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);

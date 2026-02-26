@@ -1,6 +1,8 @@
 using Maliev.NotificationService.Api.Providers;
+using Maliev.NotificationService.Api.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -10,13 +12,17 @@ public class InstagramProviderTests
 {
     private readonly InstagramProvider _provider;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
-    private readonly Mock<IConfiguration> _configMock;
+    private readonly ExternalProvidersOptions _options;
     private readonly MockHttpMessageHandler _httpMessageHandler;
 
     public InstagramProviderTests()
     {
-        _configMock = new Mock<IConfiguration>();
-        _configMock.Setup(x => x["ExternalProviders:Instagram:PageAccessToken"]).Returns("test-token");
+        _options = new ExternalProvidersOptions
+        {
+            Instagram = new InstagramOptions { PageAccessToken = "test-token" }
+        };
+        var optionsMock = new Mock<IOptions<ExternalProvidersOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(_options);
 
         var logger = new Mock<ILogger<InstagramProvider>>();
 
@@ -29,7 +35,7 @@ public class InstagramProviderTests
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _httpClientFactoryMock.Setup(x => x.CreateClient("Instagram")).Returns(httpClient);
 
-        _provider = new InstagramProvider(logger.Object, _configMock.Object, _httpClientFactoryMock.Object);
+        _provider = new InstagramProvider(logger.Object, _httpClientFactoryMock.Object, optionsMock.Object);
     }
 
     [Fact]
@@ -105,10 +111,12 @@ public class InstagramProviderTests
     public async Task SendAsync_NotConfigured_ReturnsSimulatedSuccess()
     {
         // Arrange
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(x => x["ExternalProviders:Instagram:PageAccessToken"]).Returns((string?)null);
+        var emptyOptions = new ExternalProvidersOptions();
+        var optionsMock = new Mock<IOptions<ExternalProvidersOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(emptyOptions);
+
         var logger = new Mock<ILogger<InstagramProvider>>();
-        var provider = new InstagramProvider(logger.Object, configMock.Object, _httpClientFactoryMock.Object);
+        var provider = new InstagramProvider(logger.Object, _httpClientFactoryMock.Object, optionsMock.Object);
 
         // Act
         var result = await provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);

@@ -1,4 +1,5 @@
 using Maliev.Aspire.ServiceDefaults;
+using Maliev.NotificationService.Api.Configuration;
 using Maliev.NotificationService.Data;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,10 @@ try
     {
         options.SizeLimit = 1024;
     });
+
+    // Register options for external providers
+    builder.Services.Configure<ExternalProvidersOptions>(
+        builder.Configuration.GetSection(ExternalProvidersOptions.SectionName));
 
     // Add IAM Client
     builder.AddIAMServiceClient("notification");
