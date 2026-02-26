@@ -9,13 +9,27 @@ namespace Maliev.NotificationService.Api.Tests.Unit.Providers;
 public class InstagramProviderTests
 {
     private readonly InstagramProvider _provider;
+    private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
+    private readonly Mock<IConfiguration> _configMock;
+    private readonly MockHttpMessageHandler _httpMessageHandler;
 
     public InstagramProviderTests()
     {
-        var config = new Mock<IConfiguration>();
+        _configMock = new Mock<IConfiguration>();
+        _configMock.Setup(x => x["ExternalProviders:Instagram:PageAccessToken"]).Returns("test-token");
+
         var logger = new Mock<ILogger<InstagramProvider>>();
-        var httpClientFactory = new Mock<IHttpClientFactory>();
-        _provider = new InstagramProvider(logger.Object, config.Object, httpClientFactory.Object);
+
+        _httpMessageHandler = new MockHttpMessageHandler();
+        var httpClient = new HttpClient(_httpMessageHandler)
+        {
+            BaseAddress = new Uri("https://graph.facebook.com/v18.0/")
+        };
+
+        _httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        _httpClientFactoryMock.Setup(x => x.CreateClient("Instagram")).Returns(httpClient);
+
+        _provider = new InstagramProvider(logger.Object, _configMock.Object, _httpClientFactoryMock.Object);
     }
 
     [Fact]
@@ -72,16 +86,92 @@ public class InstagramProviderTests
     [Fact]
     public async Task SendAsync_ValidIgsid_ReturnsSuccess()
     {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"message_id\": \"ig_mid.test123\"}")
+        };
+
+        // Act
         var result = await _provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.MessageId);
-        Assert.StartsWith("ig_mid.", result.MessageId);
+        Assert.Equal("ig_mid.test123", result.MessageId);
+        Assert.Contains("me/messages?access_token=test-token", _httpMessageHandler.LastRequest!.RequestUri!.ToString());
     }
 
     [Fact]
-    public async Task GetHealthAsync_AlwaysReturnsTrue()
+    public async Task SendAsync_NotConfigured_ReturnsSimulatedSuccess()
     {
+        // Arrange
+        var configMock = new Mock<IConfiguration>();
+        configMock.Setup(x => x["ExternalProviders:Instagram:PageAccessToken"]).Returns((string?)null);
+        var logger = new Mock<ILogger<InstagramProvider>>();
+        var provider = new InstagramProvider(logger.Object, configMock.Object, _httpClientFactoryMock.Object);
+
+        // Act
+        var result = await provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.StartsWith("ig_mid.", result.MessageId);
+        Assert.Contains("simulated", result.ProviderResponse, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SendAsync_ApiError_ReturnsFailed()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("{\"error\": \"Invalid parameter\"}")
+        };
+
+        // Act
+        var result = await _provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal(DeliveryFailureType.InvalidRecipient, result.FailureType);
+    }
+
+    [Fact]
+    public async Task GetHealthAsync_TokenValid_ReturnsTrue()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+
+        // Act
         var result = await _provider.GetHealthAsync(CancellationToken.None);
+
+        // Assert
         Assert.True(result);
+        Assert.Contains("me?fields=id&access_token=test-token", _httpMessageHandler.LastRequest!.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task GetHealthAsync_TokenInvalid_ReturnsFalse()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+
+        // Act
+        var result = await _provider.GetHealthAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    private class MockHttpMessageHandler : HttpMessageHandler
+    {
+        public HttpResponseMessage Response { get; set; } = new(System.Net.HttpStatusCode.OK);
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(Response);
+        }
     }
 }

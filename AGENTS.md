@@ -50,7 +50,9 @@ The project uses .NET 10.0 and enforces strict quality gates.
   - Inject `ILogger<T>`.
   - Use `[LoggerMessage]` source generator for high-performance logging in hot paths (see `Program.cs` for examples).
 - **Configuration**: Inject configuration via `IOptions<T>`. Never access `IConfiguration` directly in services.
-- **Secrets**: Never hardcode secrets. Use environment variables.
+- **Secrets**:
+  - Never hardcode secrets. Use environment variables in production.
+  - For local development, use **.NET User Secrets**. See `README.md` for a comprehensive list of required secret keys for notification providers.
 - **Permissions**: Use `[RequirePermission("notification.{resource}.{action}")]` attributes on controllers.
 
 ### Naming Conventions

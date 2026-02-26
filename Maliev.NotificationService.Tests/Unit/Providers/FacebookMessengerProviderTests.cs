@@ -9,13 +9,27 @@ namespace Maliev.NotificationService.Api.Tests.Unit.Providers;
 public class FacebookMessengerProviderTests
 {
     private readonly FacebookMessengerProvider _provider;
+    private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
+    private readonly Mock<IConfiguration> _configMock;
+    private readonly MockHttpMessageHandler _httpMessageHandler;
 
     public FacebookMessengerProviderTests()
     {
-        var config = new Mock<IConfiguration>();
+        _configMock = new Mock<IConfiguration>();
+        _configMock.Setup(x => x["ExternalProviders:Facebook:PageAccessToken"]).Returns("test-token");
+
         var logger = new Mock<ILogger<FacebookMessengerProvider>>();
-        var httpClientFactory = new Mock<IHttpClientFactory>();
-        _provider = new FacebookMessengerProvider(logger.Object, config.Object, httpClientFactory.Object);
+
+        _httpMessageHandler = new MockHttpMessageHandler();
+        var httpClient = new HttpClient(_httpMessageHandler)
+        {
+            BaseAddress = new Uri("https://graph.facebook.com/v18.0/")
+        };
+
+        _httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        _httpClientFactoryMock.Setup(x => x.CreateClient("Facebook")).Returns(httpClient);
+
+        _provider = new FacebookMessengerProvider(logger.Object, _configMock.Object, _httpClientFactoryMock.Object);
     }
 
     [Fact]
@@ -73,16 +87,92 @@ public class FacebookMessengerProviderTests
     [Fact]
     public async Task SendAsync_ValidPsid_ReturnsSuccess()
     {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"message_id\": \"fb_mid.test123\"}")
+        };
+
+        // Act
         var result = await _provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.MessageId);
-        Assert.StartsWith("fb_mid.", result.MessageId);
+        Assert.Equal("fb_mid.test123", result.MessageId);
+        Assert.Contains("me/messages?access_token=test-token", _httpMessageHandler.LastRequest!.RequestUri!.ToString());
     }
 
     [Fact]
-    public async Task GetHealthAsync_AlwaysReturnsTrue()
+    public async Task SendAsync_NotConfigured_ReturnsSimulatedSuccess()
     {
+        // Arrange
+        var configMock = new Mock<IConfiguration>();
+        configMock.Setup(x => x["ExternalProviders:Facebook:PageAccessToken"]).Returns((string?)null);
+        var logger = new Mock<ILogger<FacebookMessengerProvider>>();
+        var provider = new FacebookMessengerProvider(logger.Object, configMock.Object, _httpClientFactoryMock.Object);
+
+        // Act
+        var result = await provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.StartsWith("fb_mid.", result.MessageId);
+        Assert.Contains("simulated", result.ProviderResponse, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SendAsync_ApiError_ReturnsFailed()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("{\"error\": \"Invalid parameter\"}")
+        };
+
+        // Act
+        var result = await _provider.SendAsync("1234567890123456", "Hello", null, CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal(DeliveryFailureType.InvalidRecipient, result.FailureType);
+    }
+
+    [Fact]
+    public async Task GetHealthAsync_TokenValid_ReturnsTrue()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+
+        // Act
         var result = await _provider.GetHealthAsync(CancellationToken.None);
+
+        // Assert
         Assert.True(result);
+        Assert.Contains("me?fields=id&access_token=test-token", _httpMessageHandler.LastRequest!.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task GetHealthAsync_TokenInvalid_ReturnsFalse()
+    {
+        // Arrange
+        _httpMessageHandler.Response = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+
+        // Act
+        var result = await _provider.GetHealthAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    private class MockHttpMessageHandler : HttpMessageHandler
+    {
+        public HttpResponseMessage Response { get; set; } = new(System.Net.HttpStatusCode.OK);
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(Response);
+        }
     }
 }

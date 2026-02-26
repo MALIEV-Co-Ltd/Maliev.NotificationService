@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Maliev.NotificationService.Api.Providers;
@@ -13,6 +14,7 @@ public partial class InstagramProvider : IChannelProvider
     private readonly ILogger<InstagramProvider> _logger;
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly bool _isConfigured;
 
     public string ChannelType => "instagram";
 
@@ -24,6 +26,12 @@ public partial class InstagramProvider : IChannelProvider
         _logger = logger;
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
+
+        _isConfigured = !string.IsNullOrEmpty(_configuration["ExternalProviders:Instagram:PageAccessToken"]);
+        if (!_isConfigured)
+        {
+            _logger.LogWarning("Instagram PageAccessToken not configured. Instagram Messaging sending will be simulated.");
+        }
     }
 
     public async Task<DeliveryResult> SendAsync(
@@ -49,30 +57,60 @@ public partial class InstagramProvider : IChannelProvider
                 recipientId,
                 message.Length);
 
-            // TODO: Replace with actual Instagram Messaging API call
-            // Example using Facebook Graph API:
-            // var accessToken = _configuration["ExternalProviders:Instagram:PageAccessToken"];
-            // var client = _httpClientFactory.CreateClient("Instagram");
-            // var payload = new
-            // {
-            //     recipient = new { id = recipientId },
-            //     message = new { text = message }
-            // };
-            // var response = await client.PostAsJsonAsync($"/v18.0/me/messages?access_token={accessToken}", payload, ct);
+            if (!_isConfigured)
+            {
+                _logger.LogInformation(
+                    "Simulating Instagram message send: To={Recipient}, MessageLength={Length}",
+                    recipientId,
+                    message.Length);
 
-            // For now, simulate successful delivery
-            await Task.Delay(160, ct); // Simulate network latency
+                await Task.Delay(160, ct);
+                var simulatedId = $"ig_mid.{Guid.NewGuid():N}";
 
-            var messageId = $"ig_mid.{Guid.NewGuid():N}";
+                return DeliveryResult.Successful(
+                    messageId: simulatedId,
+                    providerResponse: "Instagram message sent successfully (simulated - no credentials configured)");
+            }
 
-            _logger.LogInformation(
-                "Instagram message sent successfully: To={Recipient}, MessageId={MessageId}",
-                recipientId,
-                messageId);
+            var accessToken = _configuration["ExternalProviders:Instagram:PageAccessToken"];
+            var client = _httpClientFactory.CreateClient("Instagram");
+            var payload = new
+            {
+                recipient = new { id = recipientId },
+                message = new { text = message }
+            };
 
-            return DeliveryResult.Successful(
-                messageId: messageId,
-                providerResponse: "Instagram message sent successfully (mock)");
+            var response = await client.PostAsJsonAsync(
+                $"me/messages?access_token={accessToken}",
+                payload,
+                ct);
+
+            var responseContent = await response.Content.ReadAsStringAsync(ct);
+
+            if (response.IsSuccessStatusCode)
+            {
+                using var doc = JsonDocument.Parse(responseContent);
+                var messageId = doc.RootElement.GetProperty("message_id").GetString() ?? $"ig_mid.{Guid.NewGuid():N}";
+
+                _logger.LogInformation(
+                    "Instagram message sent successfully: To={Recipient}, MessageId={MessageId}",
+                    recipientId,
+                    messageId);
+
+                return DeliveryResult.Successful(
+                    messageId: messageId,
+                    providerResponse: responseContent);
+            }
+
+            _logger.LogError(
+                "Instagram API error: Status={Status}, Response={Response}",
+                response.StatusCode,
+                responseContent);
+
+            return DeliveryResult.Failed(
+                failureType: MapHttpStatusCodeToFailureType(response.StatusCode),
+                errorMessage: $"Instagram API error: {response.StatusCode}",
+                isRetryable: IsRetryableStatus(response.StatusCode));
         }
         catch (Exception ex)
         {
@@ -106,12 +144,39 @@ public partial class InstagramProvider : IChannelProvider
         return Task.FromResult(ValidationResult.Valid());
     }
 
-    public Task<bool> GetHealthAsync(CancellationToken ct)
+    public async Task<bool> GetHealthAsync(CancellationToken ct)
     {
-        // For mock implementation, always return healthy
-        // In production, check Instagram Messaging API connectivity
-        // Example: Make a GET request to /me endpoint to verify access token
-        return Task.FromResult(true);
+        if (!_isConfigured) return false;
+
+        try
+        {
+            var accessToken = _configuration["ExternalProviders:Instagram:PageAccessToken"];
+            var client = _httpClientFactory.CreateClient("Instagram");
+            var response = await client.GetAsync($"me?fields=id&access_token={accessToken}", ct);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static DeliveryFailureType MapHttpStatusCodeToFailureType(System.Net.HttpStatusCode statusCode)
+    {
+        return statusCode switch
+        {
+            System.Net.HttpStatusCode.BadRequest => DeliveryFailureType.InvalidRecipient,
+            System.Net.HttpStatusCode.Unauthorized => DeliveryFailureType.AuthenticationFailed,
+            System.Net.HttpStatusCode.Forbidden => DeliveryFailureType.AuthenticationFailed,
+            System.Net.HttpStatusCode.TooManyRequests => DeliveryFailureType.RateLimitExceeded,
+            _ => DeliveryFailureType.ProviderError
+        };
+    }
+
+    private static bool IsRetryableStatus(System.Net.HttpStatusCode statusCode)
+    {
+        return (int)statusCode >= 500 || statusCode == System.Net.HttpStatusCode.TooManyRequests;
     }
 
     [GeneratedRegex(@"^\d{10,20}$", RegexOptions.None)]
