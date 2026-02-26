@@ -14,11 +14,11 @@ jobs:
         run: |
           BASE_BRANCH="${{ github.base_ref }}"
           if [ "$BASE_BRANCH" == "main" ]; then
-            VERSION_FORMAT="1.0.0"
+            VERSION_FORMAT="1.0.*"
           elif [ "$BASE_BRANCH" == "staging" ]; then
-            VERSION_FORMAT="1.0.0-beta.*"
+            VERSION_FORMAT="1.0.*-beta*"
           else
-            VERSION_FORMAT="1.0.0-*"
+            VERSION_FORMAT="1.0.*-alpha*"
           fi
           echo "version_format=$VERSION_FORMAT" >> $GITHUB_OUTPUT
 
