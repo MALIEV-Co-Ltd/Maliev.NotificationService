@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Data.Entities;

@@ -15,9 +15,8 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing notification templates
 /// </summary>
 [ApiController]
-[ApiVersion("1")]
+[ApiVersion("1.0")]
 [Route("notification/v{version:apiVersion}/templates")]
-[Authorize]
 public class TemplatesController : ControllerBase
 {
     private readonly NotificationDbContext _dbContext;
@@ -72,7 +71,8 @@ public class TemplatesController : ControllerBase
             template.TemplateKey, template.Version, template.Language, template.ChannelType);
 
         var response = template.ToResponse();
-        return CreatedAtAction(nameof(GetTemplate), new { id = template.Id }, response);
+        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+        return CreatedAtAction(nameof(GetTemplate), new { id = template.Id, version = apiVersion }, response);
     }
 
     /// <summary>

@@ -19,6 +19,7 @@ try
 
     // (2) Add ServiceDefaults immediately after (includes OpenTelemetry, health checks, Redis, etc.)
     builder.AddServiceDefaults();
+    builder.AddDefaultApiVersioning();
     builder.AddStandardMiddleware(options =>
     {
         options.EnableRequestLogging = true;

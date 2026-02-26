@@ -16,9 +16,8 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing user notification preferences
 /// </summary>
 [ApiController]
-[ApiVersion("1")]
+[ApiVersion("1.0")]
 [Route("notification/v{version:apiVersion}/preferences")]
-[Authorize]
 public class PreferencesController : ControllerBase
 {
     private readonly NotificationDbContext _dbContext;
@@ -77,9 +76,10 @@ public class PreferencesController : ControllerBase
         _logger.LogInformation("Created preferences for user: {UserId}", request.UserId);
 
         var response = preference.ToResponse();
+        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
         return CreatedAtAction(
             nameof(GetPreferences),
-            new { userId = preference.UserId },
+            new { userId = preference.UserId, version = apiVersion },
             response);
     }
 

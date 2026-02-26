@@ -1,4 +1,3 @@
-using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Models.Enums;
 using Maliev.NotificationService.Api.Services;

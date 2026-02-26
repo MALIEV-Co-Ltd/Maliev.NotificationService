@@ -1,4 +1,3 @@
-using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Generated;
 using Maliev.NotificationService.Api.Metrics;
 using Maliev.NotificationService.Api.Providers;
