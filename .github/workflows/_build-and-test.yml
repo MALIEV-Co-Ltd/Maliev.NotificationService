@@ -33,7 +33,7 @@ jobs:
           dotnet-version: "10.x"
 
       - name: Restore dependencies
-        run: dotnet restore ${{ inputs.solution_file }} ${{ inputs.extra_args }}
+        run: dotnet restore ${{ inputs.solution_file }} --no-cache ${{ inputs.extra_args }}
         working-directory: service
         env:
           NUGET_USERNAME: ${{ github.actor }}
