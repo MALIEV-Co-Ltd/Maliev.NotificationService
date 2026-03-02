@@ -1,7 +1,8 @@
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Metrics;
 using Maliev.NotificationService.Api.Providers;
-using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Text.Json;
@@ -410,7 +411,7 @@ public class NotificationRouter : INotificationRouter
     /// Marks the binding as invalid and records the reason and timestamp.
     /// </summary>
     private async Task InvalidateChannelBindingAsync(
-        Data.Entities.ChannelBinding channelBinding,
+        Domain.Entities.ChannelBinding channelBinding,
         string invalidatedReason,
         CancellationToken cancellationToken)
     {

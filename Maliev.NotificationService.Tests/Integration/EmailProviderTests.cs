@@ -1,4 +1,5 @@
 using Moq;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;

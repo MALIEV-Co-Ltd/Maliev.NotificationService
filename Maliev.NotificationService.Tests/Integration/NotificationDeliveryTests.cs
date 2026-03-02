@@ -3,8 +3,11 @@ using System.Text.Json;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.NotificationService.Domain.Entities;
 using Xunit;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Shared;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -126,7 +129,7 @@ public class NotificationDeliveryTests : IClassFixture<TestWebApplicationFactory
         // Assert
         // Verify delivery log shows failure
         using var assertScope = _factory.Services.CreateScope();
-        var dbContext = assertScope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var dbContext = assertScope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logs = await dbContext.DeliveryLogs
             .Where(l => l.UserId == "invalid_user_999")
             .ToListAsync();

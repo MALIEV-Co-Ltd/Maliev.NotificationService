@@ -1,5 +1,5 @@
 using Maliev.NotificationService.Api.Models.Responses;
-using Maliev.NotificationService.Data.Entities;
+using Maliev.NotificationService.Domain.Entities;
 
 namespace Maliev.NotificationService.Api.Extensions;
 

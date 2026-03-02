@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Api.Providers;
-using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Maliev.NotificationService.Tests.Testing;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;

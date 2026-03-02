@@ -4,9 +4,9 @@ using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Models.Requests;
 using Maliev.NotificationService.Api.Models.Responses;
 using Maliev.NotificationService.Api.Services;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.NotificationService.Domain.Entities;
 using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;

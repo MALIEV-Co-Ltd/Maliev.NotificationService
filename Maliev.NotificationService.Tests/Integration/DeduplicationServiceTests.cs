@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Tests.Testing;

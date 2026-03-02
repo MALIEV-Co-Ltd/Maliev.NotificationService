@@ -1,6 +1,7 @@
-using Maliev.MessagingContracts.Generated;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
+using Maliev.MessagingContracts.Contracts.Payments;
+using Maliev.MessagingContracts.Contracts.Shared;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
 
 namespace Maliev.NotificationService.Api.Consumers

@@ -1,13 +1,16 @@
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Customers;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Consumers;
-using Maliev.NotificationService.Data;
 using Maliev.NotificationService.Tests.Testing;
+using Maliev.NotificationService.Domain.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
@@ -138,7 +141,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var userId = principalId.ToString();
 
         // Pre-create preference
-        context.UserNotificationPreferences.Add(new Data.Entities.UserNotificationPreference
+        context.UserNotificationPreferences.Add(new UserNotificationPreference
         {
             UserId = userId,
             PrimaryChannelType = "sms",
@@ -177,7 +180,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var userId = principalId.ToString();
 
         // Pre-create email binding
-        context.ChannelBindings.Add(new Data.Entities.ChannelBinding
+        context.ChannelBindings.Add(new ChannelBinding
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -219,7 +222,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
 
-        context.ChannelBindings.Add(new Data.Entities.ChannelBinding
+        context.ChannelBindings.Add(new ChannelBinding
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -259,7 +262,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
 
-        context.ChannelBindings.Add(new Data.Entities.ChannelBinding
+        context.ChannelBindings.Add(new ChannelBinding
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -365,7 +368,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var userId = customerId.ToString();
         var sameEmail = "same@example.com";
 
-        context.ChannelBindings.Add(new Data.Entities.ChannelBinding
+        context.ChannelBindings.Add(new ChannelBinding
         {
             Id = Guid.NewGuid(),
             UserId = userId,

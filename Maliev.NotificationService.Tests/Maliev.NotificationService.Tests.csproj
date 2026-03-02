@@ -31,12 +31,16 @@
 
   <ItemGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">
     <ProjectReference Include="..\Maliev.NotificationService.Api\Maliev.NotificationService.Api.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Domain\Maliev.NotificationService.Domain.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Infrastructure\Maliev.NotificationService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Maliev.Aspire\Maliev.Aspire.ServiceDefaults\Maliev.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Maliev.MessagingContracts\generated\csharp\Maliev.MessagingContracts.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ProjectReference Include="..\Maliev.NotificationService.Api\Maliev.NotificationService.Api.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Domain\Maliev.NotificationService.Domain.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Infrastructure\Maliev.NotificationService.Infrastructure.csproj" />
     <PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="$(SharedLibraryVersion)" />
     <PackageReference Include="Maliev.MessagingContracts" Version="$(SharedLibraryVersion)" />
   </ItemGroup>
