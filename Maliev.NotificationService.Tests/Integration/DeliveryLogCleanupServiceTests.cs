@@ -61,7 +61,7 @@ public class DeliveryLogCleanupServiceTests
     public void Dispose_CallsTimerDispose()
     {
         var service = new DeliveryLogCleanupService(_mockServiceProvider.Object, _mockLogger.Object);
-        
+
         service.Dispose();
         service.Dispose();
     }

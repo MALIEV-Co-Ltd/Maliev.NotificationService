@@ -169,7 +169,7 @@ public class EmailProviderTests
     {
         var config = new ConfigurationBuilder().Build();
         var logger = new Mock<ILogger<EmailProvider>>();
-        
+
         var provider = new EmailProvider(logger.Object, config);
 
         Assert.Equal("email", provider.ChannelType);
@@ -179,7 +179,7 @@ public class EmailProviderTests
     public void Constructor_WithApiKey_ConfiguresBrevo()
     {
         var config = CreateConfiguration(apiKey: "test-api-key");
-        
+
         var provider = new EmailProvider(_mockLogger.Object, config);
 
         Assert.Equal("email", provider.ChannelType);
