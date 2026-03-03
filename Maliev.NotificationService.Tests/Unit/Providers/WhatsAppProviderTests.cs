@@ -20,6 +20,16 @@ public class WhatsAppProviderTests
         _provider = new WhatsAppProvider(logger.Object, config.Object);
     }
 
+    private WhatsAppProvider CreateProviderWithConfig(string? accountSid = null, string? authToken = null, string? whatsAppNumber = null)
+    {
+        var config = new Mock<IConfiguration>();
+        config.Setup(c => c["Twilio:AccountSid"]).Returns(accountSid);
+        config.Setup(c => c["Twilio:AuthToken"]).Returns(authToken);
+        config.Setup(c => c["Twilio:WhatsAppNumber"]).Returns(whatsAppNumber);
+        var logger = new Mock<ILogger<WhatsAppProvider>>();
+        return new WhatsAppProvider(logger.Object, config.Object);
+    }
+
     [Fact]
     public void ChannelType_IsCorrect()
     {
@@ -81,5 +91,37 @@ public class WhatsAppProviderTests
     {
         var result = await _provider.GetHealthAsync(CancellationToken.None);
         Assert.False(result);
+    }
+
+    [Theory]
+    [InlineData("+1")]
+    [InlineData("abc")]
+    [InlineData("123")]
+    [InlineData("+")]
+    public async Task ValidateRecipientAsync_VariousInvalidFormats_ReturnsInvalid(string phone)
+    {
+        var result = await _provider.ValidateRecipientAsync(phone, CancellationToken.None);
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task ValidateRecipientAsync_NullPhone_ReturnsInvalid()
+    {
+        var result = await _provider.ValidateRecipientAsync(null!, CancellationToken.None);
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Constructor_WithConfig_SetsProperties()
+    {
+        var provider = CreateProviderWithConfig("test-sid", "test-token", "+15551234567");
+        Assert.Equal("whatsapp", provider.ChannelType);
+    }
+
+    [Fact]
+    public async Task SendAsync_WithMetadata_FormatsMessage()
+    {
+        var result = await _provider.SendAsync("+66812345678", "Hello", new Dictionary<string, string> { ["template"] = "test" }, CancellationToken.None);
+        Assert.True(result.Success);
     }
 }

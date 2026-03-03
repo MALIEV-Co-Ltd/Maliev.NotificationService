@@ -28,14 +28,11 @@ public class ChannelProviderFactoryTests : IClassFixture<BaseIntegrationTestFact
     [InlineData("instagram", typeof(InstagramProvider))]
     public void GetProvider_ValidChannel_ReturnsCorrectProvider(string channel, Type expectedType)
     {
-        // Arrange
         using var scope = _factory.Services.CreateScope();
         var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
 
-        // Act
         var provider = factory.GetProvider(channel);
 
-        // Assert
         Assert.NotNull(provider);
         Assert.IsType(expectedType, provider);
         Assert.Equal(channel, provider.ChannelType, ignoreCase: true);
@@ -44,23 +41,76 @@ public class ChannelProviderFactoryTests : IClassFixture<BaseIntegrationTestFact
     [Fact]
     public void GetProvider_InvalidChannel_ThrowsException()
     {
-        // Arrange
         using var scope = _factory.Services.CreateScope();
         var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
 
-        // Act & Assert
         Assert.Throws<InvalidOperationException>(() => factory.GetProvider("invalid"));
     }
 
     [Fact]
     public void IsChannelSupported_ValidChannel_ReturnsTrue()
     {
-        // Arrange
         using var scope = _factory.Services.CreateScope();
         var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
 
-        // Act & Assert
         Assert.True(factory.IsChannelSupported("email"));
         Assert.False(factory.IsChannelSupported("telepathy"));
+    }
+
+    [Fact]
+    public void GetProvider_NullChannel_ThrowsArgumentException()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
+
+        Assert.Throws<ArgumentException>(() => factory.GetProvider(null!));
+    }
+
+    [Fact]
+    public void GetProvider_WhitespaceChannel_ThrowsArgumentException()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
+
+        Assert.Throws<ArgumentException>(() => factory.GetProvider("   "));
+    }
+
+    [Fact]
+    public void IsChannelSupported_Null_ReturnsFalse()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
+
+        Assert.False(factory.IsChannelSupported(null!));
+    }
+
+    [Fact]
+    public void GetAvailableChannelTypes_ReturnsAllChannels()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
+
+        var channels = factory.GetAvailableChannelTypes().ToList();
+
+        Assert.Contains("email", channels);
+        Assert.Contains("line", channels);
+        Assert.Contains("whatsapp", channels);
+        Assert.Contains("sms", channels);
+        Assert.Contains("slack", channels);
+        Assert.Contains("facebook", channels);
+        Assert.Contains("instagram", channels);
+        Assert.Equal(7, channels.Count);
+    }
+
+    [Fact]
+    public void GetProvider_CaseInsensitiveChannel_ReturnsProvider()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<ChannelProviderFactory>();
+
+        var provider = factory.GetProvider("EMAIL");
+
+        Assert.NotNull(provider);
+        Assert.Equal("email", provider.ChannelType);
     }
 }

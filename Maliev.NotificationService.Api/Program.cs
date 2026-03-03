@@ -198,10 +198,7 @@ try
             });
         });
 
-    // (6) Add API versioning
-    builder.AddDefaultApiVersioning();
-
-    // (7) Add controllers
+    // (6) Add controllers
     builder.Services.AddControllers();
 
     // Add OpenAPI
