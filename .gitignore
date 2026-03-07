@@ -74,6 +74,9 @@ nunit-*.xml
 *AUDIT*.md
 *.Improvements.md
 
+# OpenCode Speckit
+.opencode/node_modules/
+
 # Enforced Rules (User Request)
 appsettings.Development.json
 docker-compose*.yml
