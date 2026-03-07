@@ -1,12 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Shared;
+using Maliev.MessagingContracts.Contracts.Iam;
 using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Tests.Integration;
 using Maliev.NotificationService.Api.Tests.TestHelpers;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 
 namespace Maliev.NotificationService.Tests.Integration;

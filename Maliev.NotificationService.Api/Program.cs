@@ -1,6 +1,8 @@
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.NotificationService.Api.Configuration;
-using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.MessagingContracts.Contracts.Customers;
+using Maliev.MessagingContracts.Contracts.Payments;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -196,10 +198,7 @@ try
             });
         });
 
-    // (6) Add API versioning
-    builder.AddDefaultApiVersioning();
-
-    // (7) Add controllers
+    // (6) Add controllers
     builder.Services.AddControllers();
 
     // Add OpenAPI
@@ -262,7 +261,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
         try
         {
             // order-confirmed template (English, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Data.Entities.NotificationTemplate
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "order-confirmed",
                 Version = 1,
@@ -273,7 +272,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             });
 
             // order-confirmed template (Thai, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Data.Entities.NotificationTemplate
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "order-confirmed",
                 Version = 1,
@@ -284,7 +283,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             });
 
             // payment-failed template (English, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Data.Entities.NotificationTemplate
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "payment-failed",
                 Version = 1,
@@ -295,7 +294,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             });
 
             // payment-failed template (Thai, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Data.Entities.NotificationTemplate
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "payment-failed",
                 Version = 1,
@@ -306,7 +305,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             });
 
             // system-outage template (English, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Data.Entities.NotificationTemplate
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "system-outage",
                 Version = 1,
@@ -335,7 +334,7 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
 // </summary>
 static async Task SeedTemplateIfNotExistsAsync(
     NotificationDbContext dbContext,
-    Maliev.NotificationService.Data.Entities.NotificationTemplate template)
+    Maliev.NotificationService.Domain.Entities.NotificationTemplate template)
 {
     var exists = await dbContext.NotificationTemplates.AnyAsync(t =>
         t.TemplateKey == template.TemplateKey &&

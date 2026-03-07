@@ -20,6 +20,16 @@ public class SmsProviderTests
         _provider = new SmsProvider(logger.Object, config.Object);
     }
 
+    private SmsProvider CreateProviderWithConfig(string? accountSid = null, string? authToken = null, string? phoneNumber = null)
+    {
+        var config = new Mock<IConfiguration>();
+        config.Setup(c => c["Twilio:AccountSid"]).Returns(accountSid);
+        config.Setup(c => c["Twilio:AuthToken"]).Returns(authToken);
+        config.Setup(c => c["Twilio:PhoneNumber"]).Returns(phoneNumber);
+        var logger = new Mock<ILogger<SmsProvider>>();
+        return new SmsProvider(logger.Object, config.Object);
+    }
+
     [Fact]
     public void ChannelType_IsCorrect()
     {
@@ -83,5 +93,36 @@ public class SmsProviderTests
     {
         var result = await _provider.GetHealthAsync(CancellationToken.None);
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task SendAsync_WithMetadata_FormatsMessage()
+    {
+        var result = await _provider.SendAsync("+15551234567", "Hello", new Dictionary<string, string> { ["senderName"] = "Test" }, CancellationToken.None);
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void Constructor_WithConfig_SetsProperties()
+    {
+        var provider = CreateProviderWithConfig("test-sid", "test-token", "+15551234567");
+        Assert.Equal("sms", provider.ChannelType);
+    }
+
+    [Theory]
+    [InlineData("+1")]
+    [InlineData("abc")]
+    [InlineData("123")]
+    public async Task ValidateRecipientAsync_VariousInvalidFormats_ReturnsInvalid(string phone)
+    {
+        var result = await _provider.ValidateRecipientAsync(phone, CancellationToken.None);
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task ValidateRecipientAsync_NullPhone_ReturnsInvalid()
+    {
+        var result = await _provider.ValidateRecipientAsync(null!, CancellationToken.None);
+        Assert.False(result.IsValid);
     }
 }

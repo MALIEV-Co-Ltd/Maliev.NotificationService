@@ -105,10 +105,30 @@ public class ExampleService : IExampleService
 ## 4. Database (EF Core)
 
 - Database is **PostgreSQL 18**.
-- Use migrations for schema changes: `dotnet ef migrations add <MigrationName> --project Maliev.NotificationService.Api`.
+- Use migrations for schema changes: `dotnet ef migrations add <MigrationName> --project Maliev.NotificationService.Infrastructure --startup-project Maliev.NotificationService.Infrastructure`.
 - **No logic in DbContext**. Keep it strictly for configuration.
 
 ## 5. Environment & Infrastructure
 
 - **Redis**: Used for caching and deduplication.
 - **RabbitMQ**: Used via MassTransit for messaging.
+
+
+## Database & EF Core — Mandatory Rules
+
+### EF Core Design Package
+- ❌ `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
+- ✅ It belongs ONLY in the Infrastructure (or Data) project where migrations live
+- Migration commands must target Infrastructure as both project and startup-project (since EF Core Design package is in Infrastructure):
+  ```
+  dotnet ef migrations add <Name> --project Maliev.<Domain>Service.Infrastructure --startup-project Maliev.<Domain>Service.Infrastructure
+  ```
+
+### PostgreSQL xmin Concurrency — Mandatory Pattern
+Use shadow property ONLY. Never add a Xmin/xmin property to domain entities.
+```csharp
+entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion();
+```
+- ❌ Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
+- ❌ Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
+- ❌ Never use `.Ignore(e => e.Xmin)` — remove the entity property instead

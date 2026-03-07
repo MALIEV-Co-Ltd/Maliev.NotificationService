@@ -1,4 +1,4 @@
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Providers;
 
 namespace Maliev.NotificationService.Api.Services;

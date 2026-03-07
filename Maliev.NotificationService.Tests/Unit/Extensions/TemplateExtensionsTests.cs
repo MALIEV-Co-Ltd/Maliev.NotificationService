@@ -1,4 +1,4 @@
-using Maliev.NotificationService.Data.Entities;
+using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Enums;
 using Maliev.NotificationService.Api.Models.Requests;
@@ -153,4 +153,3 @@ public class TemplateExtensionsTests
         Assert.Equal("param3", entity.Parameters[2]);
     }
 }
-

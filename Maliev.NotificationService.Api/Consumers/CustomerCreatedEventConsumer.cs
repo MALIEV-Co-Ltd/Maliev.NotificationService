@@ -1,7 +1,8 @@
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts.Contracts.Customers;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Models.Enums;
-using Maliev.NotificationService.Data.Entities;
-using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 

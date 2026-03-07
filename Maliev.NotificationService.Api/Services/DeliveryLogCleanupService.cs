@@ -1,4 +1,5 @@
-using Maliev.NotificationService.Data;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Api.Services;

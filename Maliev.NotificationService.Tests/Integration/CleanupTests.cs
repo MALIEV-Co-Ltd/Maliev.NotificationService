@@ -1,6 +1,6 @@
 using Maliev.NotificationService.Api.Services;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Tests.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

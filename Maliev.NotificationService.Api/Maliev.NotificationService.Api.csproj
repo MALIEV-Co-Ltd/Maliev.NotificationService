@@ -27,8 +27,6 @@
 
   <ItemGroup>
 
-    <!-- Database -->
-
     <!-- Messaging -->
 
     <!-- API Documentation -->
@@ -40,7 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Maliev.NotificationService.Data\Maliev.NotificationService.Data.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Application\Maliev.NotificationService.Application.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Domain\Maliev.NotificationService.Domain.csproj" />
+    <ProjectReference Include="..\Maliev.NotificationService.Infrastructure\Maliev.NotificationService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

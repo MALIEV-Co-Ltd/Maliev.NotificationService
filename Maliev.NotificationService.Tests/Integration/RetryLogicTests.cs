@@ -1,8 +1,10 @@
 using System.Net;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Shared;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 

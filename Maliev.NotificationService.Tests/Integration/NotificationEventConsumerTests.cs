@@ -1,11 +1,11 @@
 using Moq;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 using Microsoft.Extensions.DependencyInjection;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Api.Consumers;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;

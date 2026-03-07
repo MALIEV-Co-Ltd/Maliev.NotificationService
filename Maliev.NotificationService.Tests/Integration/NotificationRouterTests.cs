@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.NotificationService.Domain.Entities;
 using Xunit;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Services;
-using Maliev.NotificationService.Data.Entities;
 using Maliev.NotificationService.Tests.Testing;
 using Maliev.NotificationService.Api.Tests.Integration;
 
@@ -32,7 +34,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     {
         // Arrange
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
 
         var userId = "opt-out-user";
@@ -84,7 +86,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     {
         // Arrange
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
@@ -173,7 +175,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     {
         // Arrange
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
@@ -204,7 +206,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     public async Task RouteAsync_NoProviderForChannel_ReturnsFailed()
     {
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
@@ -243,7 +245,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     public async Task RouteAsync_PrimaryInvalidEmail_FallbackSmsSucceeds()
     {
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
@@ -293,7 +295,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     public async Task RouteAsync_AllChannelsFail_ReturnsFailed()
     {
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
@@ -341,7 +343,7 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
     public async Task RouteAsync_TemplateRenderingException_ReturnsFailedNotRetryable()
     {
         using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Maliev.NotificationService.Data.NotificationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
         var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 

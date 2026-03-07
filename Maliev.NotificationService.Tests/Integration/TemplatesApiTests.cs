@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Models.Requests;
-using Maliev.NotificationService.Data;
-using Maliev.NotificationService.Data.Entities;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Maliev.NotificationService.Domain.Entities;
 using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;

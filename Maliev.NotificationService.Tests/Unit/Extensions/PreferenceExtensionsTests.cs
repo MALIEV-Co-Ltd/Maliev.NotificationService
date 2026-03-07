@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Maliev.NotificationService.Data.Entities;
+using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Api.Extensions;
 using Maliev.NotificationService.Api.Models.Requests;
 using Xunit;
@@ -198,4 +198,3 @@ public class PreferenceExtensionsTests
         Assert.Equal("marketing", entity.OptOutCategories[0]);
     }
 }
-

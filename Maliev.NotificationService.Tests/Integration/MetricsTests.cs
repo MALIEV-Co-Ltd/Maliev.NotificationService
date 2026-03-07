@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Maliev.NotificationService.Infrastructure.Persistence;
 using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
