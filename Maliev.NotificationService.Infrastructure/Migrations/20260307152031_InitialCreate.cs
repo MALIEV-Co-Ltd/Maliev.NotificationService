@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
+namespace Maliev.NotificationService.Infrastructure.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration
@@ -22,6 +22,7 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     is_valid = table.Column<bool>(type: "boolean", nullable: false),
                     invalidated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     invalidated_reason = table.Column<string>(type: "text", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -43,6 +44,7 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     escalated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     resolved_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     resolved_by = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -66,6 +68,7 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     provider_message_id = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     attempt_number = table.Column<int>(type: "integer", nullable: false),
                     delivered_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -85,6 +88,7 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     channel_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     content_template = table.Column<string>(type: "text", nullable: false),
                     parameters = table.Column<string>(type: "jsonb", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -103,6 +107,7 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     attempt_number = table.Column<int>(type: "integer", nullable: false),
                     scheduled_time = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     last_error = table.Column<string>(type: "text", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -120,7 +125,8 @@ namespace Maliev.NotificationService.Infrastructure.Persistence.Migrations
                     fallback_channel_types = table.Column<string>(type: "jsonb", nullable: false),
                     opt_out_categories = table.Column<string>(type: "jsonb", nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {

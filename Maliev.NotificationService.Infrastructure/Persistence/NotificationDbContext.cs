@@ -31,6 +31,11 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => new { e.EventId, e.UserId })
                 .IsUnique()
                 .HasFilter("\"status\" = 'delivered'");
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<RetryQueueEntry>(entity =>
@@ -38,6 +43,11 @@ public class NotificationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.EventId);
             entity.HasIndex(e => e.ScheduledTime);
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<DeadLetterRecord>(entity =>
@@ -46,6 +56,11 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => e.EventId);
             entity.HasIndex(e => e.EscalationStatus);
             entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<UserNotificationPreference>(entity =>
@@ -56,6 +71,11 @@ public class NotificationDbContext : DbContext
                 .HasColumnType("jsonb");
             entity.Property(e => e.OptOutCategories)
                 .HasColumnType("jsonb");
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<ChannelBinding>(entity =>
@@ -64,6 +84,11 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsValid);
             entity.HasIndex(e => new { e.UserId, e.ChannelType }).IsUnique();
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<NotificationTemplate>(entity =>
@@ -71,6 +96,11 @@ public class NotificationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.TemplateKey, e.Version, e.Language, e.ChannelType }).IsUnique();
             entity.HasIndex(e => e.TemplateKey);
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         SnakeCaseNamingHelper.ApplySnakeCaseNaming(modelBuilder);
