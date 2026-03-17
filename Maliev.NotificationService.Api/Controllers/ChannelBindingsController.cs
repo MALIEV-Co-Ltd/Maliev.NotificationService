@@ -18,7 +18,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing channel bindings
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/channel-bindings")]
 public class ChannelBindingsController : ControllerBase
 {

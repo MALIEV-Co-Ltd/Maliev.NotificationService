@@ -17,7 +17,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// Supports filtering by user, date range, status, and channel.
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/delivery-logs")]
 public class DeliveryLogsController : ControllerBase
 {

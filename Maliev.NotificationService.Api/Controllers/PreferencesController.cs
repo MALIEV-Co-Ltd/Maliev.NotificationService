@@ -17,7 +17,7 @@ namespace Maliev.NotificationService.Api.Controllers;
 /// API controller for managing user notification preferences
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("notification/v{version:apiVersion}/preferences")]
 public class PreferencesController : ControllerBase
 {
