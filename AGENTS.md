@@ -2,71 +2,76 @@
 
 This document provides essential instructions for AI agents working on the `Maliev.NotificationService` repository. Follow these guidelines strictly to maintain code quality and architectural integrity.
 
-## 1. Build, Test, and Lint Commands
+## 1. Build, Test & Lint Commands
 
-The project uses .NET 10.0 and enforces strict quality gates.
+All commands run from within this service directory (`B:\maliev\Maliev.NotificationService`).
 
-- **Build**:
-  ```bash
-  dotnet build
-  ```
-  *Note: `TreatWarningsAsErrors` is enabled. All warnings must be resolved.*
+```powershell
+# Build (treats warnings as errors — all must be fixed)
+dotnet build Maliev.NotificationService.slnx
 
-- **Run All Tests**:
-  ```bash
-  dotnet test
-  ```
-  *Note: Integration tests use Testcontainers and require Docker.*
+# Run all tests
+dotnet test Maliev.NotificationService.slnx --verbosity normal
 
-- **Run Single Test**:
-  ```bash
-  dotnet test --filter "FullyQualifiedName~Namespace.ClassName.MethodName"
-  ```
-  *Example*: `dotnet test --filter "FullyQualifiedName~Maliev.NotificationService.Tests.Integration.TemplatesControllerTests.CreateTemplate_ValidRequest_ReturnsCreated"`
+# Run a single test method
+dotnet test --filter "FullyQualifiedName~TemplatesControllerTests.CreateTemplate_ValidRequest_ReturnsCreated"
 
-- **Lint/Format**:
-  ```bash
-  dotnet format
-  ```
+# Run all tests in a class
+dotnet test --filter "FullyQualifiedName~TemplatesControllerTests"
+
+# Run with code coverage
+dotnet test Maliev.NotificationService.slnx --collect:"XPlat Code Coverage"
+
+# Format check
+dotnet format Maliev.NotificationService.slnx
+
+# EF Core migrations (Infrastructure project only)
+dotnet ef migrations add <Name> --project Maliev.NotificationService.Infrastructure --startup-project Maliev.NotificationService.Infrastructure
+```
+
+*Note: Integration tests use Testcontainers and require Docker.*
 
 ## 2. Code Style & Conventions
 
-### General
-- **Framework**: .NET 10.0 (C# 13).
-- **Nullable Reference Types**: Enabled globally. Handle nulls explicitly.
-- **Async/Await**: Use `async Task` for I/O-bound operations. Always accept and pass `CancellationToken`.
-- **Documentation**: Public methods and properties **must** have XML documentation (`///`).
-- **Namespaces**: Use file-scoped namespaces (e.g., `namespace Maliev.NotificationService.Api.Services;`).
+### Workspace Structure
+```
+Maliev.NotificationService/
+├── Maliev.NotificationService.Api/           # Controllers, Consumers, Middleware
+├── Maliev.NotificationService.Application/   # Use cases, DTOs, Interfaces, Handlers
+├── Maliev.NotificationService.Domain/        # Entities, value objects, domain interfaces
+├── Maliev.NotificationService.Infrastructure/ # EF Core DbContext, repositories, HTTP clients
+├── Maliev.NotificationService.Tests/         # Unit + Integration tests (xUnit)
+├── Directory.Build.props                     # Central package versioning
+└── Maliev.NotificationService.slnx           # Solution file (.slnx preferred over .sln)
+```
 
-### Banned Libraries (Strict)
-- ❌ **AutoMapper**: Use manual mapping (extension methods or `ToEntity`/`ToResponse` methods).
-- ❌ **FluentValidation**: Use standard Data Annotations (`[Required]`, `[EmailAddress]`) on DTOs.
-- ❌ **FluentAssertions**: Use standard xUnit `Assert` methods only.
-- ❌ **In-memory EF Core DB**: Use **Testcontainers** with real PostgreSQL 18 for integration tests.
+### C# Naming & Formatting
+- **Namespaces**: File-scoped (`namespace Maliev.NotificationService.Api.Services;`)
+- **Classes/Methods/Properties**: `PascalCase`
+- **Private fields**: `_camelCase` (underscore prefix)
+- **Parameters/locals**: `camelCase`
+- **Async methods**: Suffix with `Async` (e.g., `ProcessAsync`)
+- **Interfaces**: Prefix with `I` (e.g., `IDeduplicationService`)
+- **Permissions**: GCP-style `{domain}.{plural-resource}.{action}` as `public const string` in a `Permissions` static class
+  - Valid: `notification.templates.create`, `notification.channels.send`
+  - Invalid: `notification.template.create` (singular), `notification.send` (missing resource)
+- **XML docs**: Required on ALL public methods and properties
+- **Nullable**: Enabled (`<Nullable>enable</Nullable>`). Use `?` explicitly
+- **Imports**: System first, then third-party, then local. Alphabetize within groups. Remove unused `using`
+- **Braces**: Allman style (new line) for methods and control structures. Expression-bodied for properties/accessors
+- **Indentation**: 4 spaces, LF line endings, UTF-8, trim trailing whitespace
 
-### Architecture Patterns
-- **Dependency Injection**: Use constructor injection.
-- **Logging**:
-  - Inject `ILogger<T>`.
+### C# Patterns
+- **DI**: Constructor injection with `private readonly` fields
+- **Controllers**: `[ApiController]`, `[ApiVersion("1")]`, `[Route("notification/v{version:apiVersion}")]`
+- **Logging**: `ILogger<T>` with structured placeholders (never interpolate): `_logger.LogInformation("Processing {TemplateId}", templateId)`
   - Use `[LoggerMessage]` source generator for high-performance logging in hot paths (see `Program.cs` for examples).
+- **Error handling**: Global exception middleware. Return `ProblemDetails` / `ErrorResponse` DTOs. Never expose stack traces
+- **JSON**: Check existing conventions in this service for naming policy
+- **Manual mapping**: Static extension methods (`ToDto()`, `ToEntity()`). AutoMapper is banned
+- **Validation**: `System.ComponentModel.DataAnnotations` on DTOs. FluentValidation is banned
 - **Configuration**: Inject configuration via `IOptions<T>`. Never access `IConfiguration` directly in services.
-- **Secrets**:
-  - Never hardcode secrets. Use environment variables in production.
-  - For local development, use **.NET User Secrets**. See `README.md` for a comprehensive list of required secret keys for notification providers.
-- **Permissions**: Use `[RequirePermission("notification.{resource}.{action}")]` attributes on controllers.
-
-### Naming Conventions
-- **Classes/Interfaces**: PascalCase (`DeduplicationService`, `IDeduplicationService`).
-- **Methods**: PascalCase (`IsDuplicateAsync`).
-- **Variables/Parameters**: camelCase (`eventId`, `dbContext`).
-- **Private Fields**: `_camelCase` (`_logger`, `_dbContext`).
-- **Constants**: PascalCase (`CacheTtlHours`).
-
-### Error Handling
-- Fail fast.
-- Use global exception handling middleware for unhandled exceptions.
-- For recoverable errors (e.g., external API failures), use `try/catch` and log specific errors.
-- Use `Result` pattern or specific return types where appropriate, but standard Exceptions are acceptable for unexpected failures.
+- **Secrets**: Never hardcode secrets. Use environment variables in production. For local development, use **.NET User Secrets**. See `README.md` for a comprehensive list of required secret keys for notification providers.
 
 ### Example Service Structure
 ```csharp
@@ -96,11 +101,25 @@ public class ExampleService : IExampleService
 }
 ```
 
-## 3. Testing Guidelines
+## 3. Banned Libraries (Build Will Fail)
 
-- **Unit Tests**: Test logic in isolation. Mock dependencies using `Moq`.
-- **Integration Tests**: Test the full stack (Controller -> DB). Use `WebApplicationFactory` and `Testcontainers`.
-- **Test Naming**: `MethodName_StateUnderTest_ExpectedBehavior` (e.g., `CreateTemplate_DuplicateKey_ReturnsConflict`).
+| Banned | Use Instead |
+|--------|-------------|
+| AutoMapper | Manual mapping extensions |
+| FluentValidation | DataAnnotations or manual validation |
+| FluentAssertions | Standard xUnit `Assert.*` |
+| Swashbuckle/Swagger | Scalar (at `/notification/scalar`) |
+| InMemoryDatabase (EF Core) | Testcontainers with real PostgreSQL |
+
+## 4. Testing Rules
+
+- **Framework**: xUnit with standard `Assert` (`Assert.Equal`, `Assert.NotNull`, etc.)
+- **Naming**: `MethodName_StateUnderTest_ExpectedBehavior` or `HTTP_METHOD_Path_Scenario_ExpectedStatus`
+- **Coverage**: Minimum 80% per service
+- **Integration tests**: `BaseIntegrationTestFactory<TProgram, TDbContext>` with Testcontainers (PostgreSQL, Redis, RabbitMQ). Never InMemoryDatabase
+- **System tests** (Tier 3): `AspireTestFixture` with `[Collection("AspireDomainTests")]` — shared AppHost, never one per class
+- **Eventual consistency**: Use `TestHelpers.WaitForAsync`. Never `Task.Delay`
+- **MassTransit consumers**: Must have consumer tests using `AddMassTransitTestHarness()`
 
 ### Testing Strategy (4-Tier Pyramid Context)
 
@@ -113,49 +132,19 @@ This service's tests cover **Tier 1 (Unit)** and **Tier 2 (Service Integration)*
 
 **Tier 3 (System Integration)** — cross-service workflows and event chains — is tested in `Maliev.Aspire.Tests/`.
 
-#### Key Rules
-- Use `BaseIntegrationTestFactory<TProgram, TDbContext>` for integration tests (real Testcontainers, never InMemoryDatabase)
-- Every MassTransit consumer MUST have a consumer test using `services.AddMassTransitTestHarness()`
-- Test naming: `MethodName_StateUnderTest_ExpectedBehavior`
-- Minimum 80% code coverage
-- Use `[Fact]` for single cases, `[Theory]` for parameterized tests
-
 > Full ecosystem test strategy: `Maliev.Aspire.Tests/TEST_PLAN.md`
 
-## 4. Database (EF Core)
+## 5. Database (EF Core)
 
 - Database is **PostgreSQL 18**.
-- Use migrations for schema changes: `dotnet ef migrations add <MigrationName> --project Maliev.NotificationService.Infrastructure --startup-project Maliev.NotificationService.Infrastructure`.
 - **No logic in DbContext**. Keep it strictly for configuration.
 
-## 5. Environment & Infrastructure
-
-- **Redis**: Used for caching and deduplication.
-- **RabbitMQ**: Used via MassTransit for messaging.
-
-
-## Git & Version Control — Mandatory Rules
-
-### 🚨 CRITICAL: Always Commit Code Changes (Non-Negotiable)
-- **You MUST commit your changes to the local repository after completing any meaningful unit of work.**
-- **Never accumulate uncommitted changes.** Do not wait until end of session or until something breaks.
-- **Commit early and often** — if a change is meaningful (even a small fix or refactor), commit it.
-- **You do NOT need to push to remote** — local commits are sufficient to protect against accidental loss.
-- **If you are unsure whether to commit, commit anyway.** Extra commits are harmless; lost work is irreversible.
-- This rule applies even if you are just "testing" or "exploring" — use git branches to isolate experimental work and commit those changes too.
-
-### 🚨 CRITICAL: Never Use `git checkout` to Restore Broken Files
-- **NEVER use `git checkout` to restore or recover files.** This operation discards uncommitted changes permanently and will result in data loss.
-- **To undo/recover from broken files: first commit your current changes, then use `git revert` or `git reset --soft` to safely undo.**
-
-## Database & EF Core — Mandatory Rules
-
 ### EF Core Design Package
-- ❌ `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
-- ✅ It belongs ONLY in the Infrastructure (or Data) project where migrations live
-- Migration commands must target Infrastructure as both project and startup-project (since EF Core Design package is in Infrastructure):
+- `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
+- It belongs ONLY in the Infrastructure project where migrations live
+- Migration commands target Infrastructure as both project and startup-project:
   ```
-  dotnet ef migrations add <Name> --project Maliev.<Domain>Service.Infrastructure --startup-project Maliev.<Domain>Service.Infrastructure
+  dotnet ef migrations add <Name> --project Maliev.NotificationService.Infrastructure --startup-project Maliev.NotificationService.Infrastructure
   ```
 
 ### PostgreSQL xmin Concurrency — Mandatory Pattern
@@ -163,6 +152,31 @@ Use shadow property ONLY. Never add a Xmin/xmin property to domain entities.
 ```csharp
 entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion();
 ```
-- ❌ Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
-- ❌ Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
-- ❌ Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
+- Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
+- Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
+- Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
+
+## 6. Environment & Infrastructure
+
+- **Redis**: Used for caching and deduplication.
+- **RabbitMQ**: Used via MassTransit for messaging.
+
+## 7. Mandatory Rules
+
+- **`TreatWarningsAsErrors = true`**: Zero warnings allowed. No suppression
+- **`[RequirePermission("notification.{resources}.{action}")]`**: On all endpoints, not plain `[Authorize]`
+- **API versioning**: All routes versioned (`v1/`)
+- **Service prefix**: Routes prefixed with `/notification`
+- **Scalar docs**: Configured at `/notification/scalar`
+- **Secrets**: Never hardcoded. Use GCP Secret Manager or environment variables
+- **Async/await**: All the way down. Pass `CancellationToken`
+- **EF Core Design package**: Only in Infrastructure project, never in Api
+- **PostgreSQL xmin**: Shadow property only — `entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion()`. Never add entity property
+- **Temporary files**: Generate in `/temp` folder, clean up afterwards
+
+## 8. Git Rules
+
+- Each `Maliev.*` folder is an independent git repo. Work within this service directory for git commands
+- **Commit early and often** after every meaningful unit of work. Do not accumulate changes
+- **Never use `git checkout` to restore files** — commit first, then `git revert` or `git reset --soft`
+- Feature branches merged to `develop` via PR. Do not push without being asked
