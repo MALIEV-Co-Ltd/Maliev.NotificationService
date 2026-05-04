@@ -184,4 +184,16 @@ public class EmailProviderTests
 
         Assert.Equal("email", provider.ChannelType);
     }
+
+    [Fact]
+    public void Constructor_WithApiKey_CanBeCreatedRepeatedly()
+    {
+        var config = CreateConfiguration(apiKey: "test-api-key");
+
+        var firstProvider = new EmailProvider(_mockLogger.Object, config);
+        var secondProvider = new EmailProvider(_mockLogger.Object, config);
+
+        Assert.Equal("email", firstProvider.ChannelType);
+        Assert.Equal("email", secondProvider.ChannelType);
+    }
 }

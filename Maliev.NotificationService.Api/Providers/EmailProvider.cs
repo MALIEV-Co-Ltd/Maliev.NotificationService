@@ -33,7 +33,7 @@ public partial class EmailProvider : IChannelProvider
         var apiKey = _configuration["Brevo:ApiKey"];
         if (!string.IsNullOrEmpty(apiKey))
         {
-            brevo_csharp.Client.Configuration.Default.ApiKey.Add("api-key", apiKey);
+            brevo_csharp.Client.Configuration.Default.ApiKey["api-key"] = apiKey;
             _emailApi = new TransactionalEmailsApi();
         }
         else
