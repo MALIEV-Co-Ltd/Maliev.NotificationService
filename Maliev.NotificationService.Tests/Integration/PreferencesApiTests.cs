@@ -139,6 +139,33 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
+    public async Task GetPreferences_OtherUserWithWildcardPermission_ReturnsPreferences()
+    {
+        // Arrange
+        var userId = $"user-{Guid.NewGuid()}";
+        var createRequest = new CreatePreferenceRequest
+        {
+            UserId = userId,
+            PrimaryChannelType = "email"
+        };
+        await _client.PostAsJsonAsync("/notification/v1/preferences", createRequest);
+        var wildcardClient = _factory.CreateAuthenticatedClient(
+            userId: $"admin-{Guid.NewGuid()}",
+            permissions: ["*"]);
+
+        // Act
+        var response = await wildcardClient.GetAsync($"/notification/v1/preferences/{userId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PreferenceResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(userId, result.UserId);
+        Assert.Equal("email", result.PrimaryChannelType);
+    }
+
+    [Fact]
     public async Task GetPreferences_NonExistentUser_ReturnsNotFound()
     {
         // Arrange
@@ -182,6 +209,43 @@ public class PreferencesApiTests : IClassFixture<TestWebApplicationFactory>
         Assert.Equal(2, result.FallbackChannelTypes.Count);
         Assert.Single(result.OptOutCategories);
         Assert.Contains("promotions", result.OptOutCategories);
+    }
+
+    [Fact]
+    public async Task UpdatePreferences_OtherUserWithWildcardPermission_ReturnsUpdatedPreferences()
+    {
+        // Arrange
+        var userId = $"user-{Guid.NewGuid()}";
+        var createRequest = new CreatePreferenceRequest
+        {
+            UserId = userId,
+            PrimaryChannelType = "email"
+        };
+        await _client.PostAsJsonAsync("/notification/v1/preferences", createRequest);
+
+        var wildcardClient = _factory.CreateAuthenticatedClient(
+            userId: $"admin-{Guid.NewGuid()}",
+            permissions: ["*"]);
+        var updateRequest = new UpdatePreferenceRequest
+        {
+            PrimaryChannelType = "email",
+            FallbackChannelTypes = ["sms"],
+            OptOutCategories = ["ops-003"]
+        };
+
+        // Act
+        var response = await wildcardClient.PutAsJsonAsync($"/notification/v1/preferences/{userId}", updateRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PreferenceResponse>();
+        Assert.NotNull(result);
+        Assert.Equal("email", result.PrimaryChannelType);
+        Assert.Single(result.FallbackChannelTypes);
+        Assert.Contains("sms", result.FallbackChannelTypes);
+        Assert.Single(result.OptOutCategories);
+        Assert.Contains("ops-003", result.OptOutCategories);
     }
 
     [Fact]

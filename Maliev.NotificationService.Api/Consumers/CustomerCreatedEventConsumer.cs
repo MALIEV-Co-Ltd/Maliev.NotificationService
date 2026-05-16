@@ -1,6 +1,7 @@
 using Maliev.MessagingContracts.Contracts.Customers;
 using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Models.Enums;
+using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
@@ -14,11 +15,16 @@ namespace Maliev.NotificationService.Api.Consumers;
 public class CustomerCreatedEventConsumer : IConsumer<CustomerCreatedEvent>
 {
     private readonly NotificationDbContext _context;
+    private readonly IEncryptionService _encryptionService;
     private readonly ILogger<CustomerCreatedEventConsumer> _logger;
 
-    public CustomerCreatedEventConsumer(NotificationDbContext context, ILogger<CustomerCreatedEventConsumer> logger)
+    public CustomerCreatedEventConsumer(
+        NotificationDbContext context,
+        IEncryptionService encryptionService,
+        ILogger<CustomerCreatedEventConsumer> logger)
     {
         _context = context;
+        _encryptionService = encryptionService;
         _logger = logger;
     }
 
@@ -67,7 +73,7 @@ public class CustomerCreatedEventConsumer : IConsumer<CustomerCreatedEvent>
                     Id = Guid.NewGuid(),
                     UserId = userIdentifier,
                     ChannelType = ChannelType.Email.ToString().ToLowerInvariant(),
-                    ChannelIdentifier = message.Email, // Will be encrypted by EF Core interceptor
+                    ChannelIdentifier = _encryptionService.Encrypt(message.Email),
                     IsValid = true, // Auto-valid for now
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -88,7 +94,7 @@ public class CustomerCreatedEventConsumer : IConsumer<CustomerCreatedEvent>
                     Id = Guid.NewGuid(),
                     UserId = userIdentifier,
                     ChannelType = ChannelType.Sms.ToString().ToLowerInvariant(),
-                    ChannelIdentifier = message.Mobile, // Will be encrypted
+                    ChannelIdentifier = _encryptionService.Encrypt(message.Mobile),
                     IsValid = true,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow

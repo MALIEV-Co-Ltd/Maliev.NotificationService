@@ -182,6 +182,7 @@ try
             // Standard notification queue - higher prefetch for batch efficiency
             cfg.ReceiveEndpoint("notification-standard", e =>
             {
+                e.Bind<Maliev.MessagingContracts.Contracts.Shared.NotificationEvent>();
                 e.Bind("maliev.notifications", s =>
                 {
                     s.RoutingKey = "maliev.notification.v1.*.standard";
@@ -199,6 +200,7 @@ try
         });
 
     // (6) Add controllers
+    builder.Services.AddScoped<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
     builder.Services.AddControllers();
 
     // Add OpenAPI

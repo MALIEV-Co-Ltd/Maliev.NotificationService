@@ -49,7 +49,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service: Allow users to create preferences for themselves
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != request.UserId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
+        if (principalId != request.UserId && !HasPermission(NotificationPermissions.PreferencesUpdate))
         {
             return Forbid();
         }
@@ -100,7 +100,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service: Allow users to view their own preferences
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (principalId != userId && !User.HasClaim("permissions", NotificationPermissions.PreferencesReadAny))
+        if (principalId != userId && !HasPermission(NotificationPermissions.PreferencesReadAny))
         {
             return Forbid();
         }
@@ -141,7 +141,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesUpdate))
+        if (userId != principalId && !HasPermission(NotificationPermissions.PreferencesUpdate))
         {
             return Forbid();
         }
@@ -186,7 +186,7 @@ public class PreferencesController : ControllerBase
     {
         // Self-service logic
         var principalId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId != principalId && !User.HasClaim("permissions", NotificationPermissions.PreferencesDelete))
+        if (userId != principalId && !HasPermission(NotificationPermissions.PreferencesDelete))
         {
             return Forbid();
         }
@@ -210,5 +210,11 @@ public class PreferencesController : ControllerBase
         _logger.LogInformation("Deleted preferences for user: {UserId}", userId);
 
         return NoContent();
+    }
+
+    private bool HasPermission(string permission)
+    {
+        return User.HasClaim("permissions", "*")
+            || User.HasClaim("permissions", permission);
     }
 }

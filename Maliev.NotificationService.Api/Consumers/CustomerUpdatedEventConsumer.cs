@@ -1,12 +1,13 @@
 using Maliev.MessagingContracts.Contracts.Customers;
 using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Models.Enums;
+using Maliev.NotificationService.Api.Services;
+using Maliev.NotificationService.Api.Services.External;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
-using Maliev.NotificationService.Api.Services.External;
 
 namespace Maliev.NotificationService.Api.Consumers;
 
@@ -17,15 +18,18 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
 {
     private readonly NotificationDbContext _context;
     private readonly ICustomerServiceClient _customerServiceClient;
+    private readonly IEncryptionService _encryptionService;
     private readonly ILogger<CustomerUpdatedEventConsumer> _logger;
 
     public CustomerUpdatedEventConsumer(
         NotificationDbContext context,
         ICustomerServiceClient customerServiceClient,
+        IEncryptionService encryptionService,
         ILogger<CustomerUpdatedEventConsumer> logger)
     {
         _context = context;
         _customerServiceClient = customerServiceClient;
+        _encryptionService = encryptionService;
         _logger = logger;
     }
 
@@ -69,9 +73,10 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
 
                 if (emailBinding != null)
                 {
-                    if (emailBinding.ChannelIdentifier != newEmail)
+                    var currentEmail = DecryptOrReturnStoredValue(emailBinding.ChannelIdentifier);
+                    if (!string.Equals(currentEmail, newEmail, StringComparison.Ordinal))
                     {
-                        emailBinding.ChannelIdentifier = newEmail;
+                        emailBinding.ChannelIdentifier = _encryptionService.Encrypt(newEmail);
                         emailBinding.IsValid = false; // Re-verification needed
                     }
                 }
@@ -91,9 +96,10 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
 
                 if (smsBinding != null)
                 {
-                    if (smsBinding.ChannelIdentifier != newMobile)
+                    var currentMobile = DecryptOrReturnStoredValue(smsBinding.ChannelIdentifier);
+                    if (!string.Equals(currentMobile, newMobile, StringComparison.Ordinal))
                     {
-                        smsBinding.ChannelIdentifier = newMobile;
+                        smsBinding.ChannelIdentifier = _encryptionService.Encrypt(newMobile);
                         smsBinding.IsValid = false;
                     }
                 }
@@ -101,5 +107,21 @@ public class CustomerUpdatedEventConsumer : IConsumer<CustomerUpdatedEvent>
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private string DecryptOrReturnStoredValue(string storedValue)
+    {
+        try
+        {
+            return _encryptionService.Decrypt(storedValue);
+        }
+        catch (InvalidOperationException)
+        {
+            return storedValue;
+        }
+        catch (FormatException)
+        {
+            return storedValue;
+        }
     }
 }

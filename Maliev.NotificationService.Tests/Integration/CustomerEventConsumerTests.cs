@@ -2,6 +2,7 @@ using Maliev.MessagingContracts;
 using Maliev.MessagingContracts.Contracts.Customers;
 using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Consumers;
+using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Tests.Testing;
 using Maliev.NotificationService.Domain.Entities;
 using MassTransit;
@@ -40,9 +41,10 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerCreatedEventConsumer>>();
 
-        var consumer = new CustomerCreatedEventConsumer(context, logger);
+        var consumer = new CustomerCreatedEventConsumer(context, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
@@ -63,10 +65,14 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var emailBinding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == expectedUserId && b.ChannelType == "email");
         Assert.NotNull(emailBinding);
+        Assert.NotEqual("test@example.com", emailBinding.ChannelIdentifier);
+        Assert.Equal("test@example.com", encryption.Decrypt(emailBinding.ChannelIdentifier));
 
         var smsBinding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == expectedUserId && b.ChannelType == "sms");
         Assert.NotNull(smsBinding);
+        Assert.NotEqual("+15551234567", smsBinding.ChannelIdentifier);
+        Assert.Equal("+15551234567", encryption.Decrypt(smsBinding.ChannelIdentifier));
     }
 
     [Fact]
@@ -75,9 +81,10 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerCreatedEventConsumer>>();
 
-        var consumer = new CustomerCreatedEventConsumer(context, logger);
+        var consumer = new CustomerCreatedEventConsumer(context, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
@@ -96,6 +103,7 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var emailBinding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == expectedUserId && b.ChannelType == "email");
         Assert.NotNull(emailBinding);
+        Assert.Equal("test@example.com", encryption.Decrypt(emailBinding.ChannelIdentifier));
 
         var smsBinding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == expectedUserId && b.ChannelType == "sms");
@@ -108,9 +116,10 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerCreatedEventConsumer>>();
 
-        var consumer = new CustomerCreatedEventConsumer(context, logger);
+        var consumer = new CustomerCreatedEventConsumer(context, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var evt = CreateCustomerCreatedEvent(customerId, Guid.Empty, "user@example.com", null);
@@ -132,9 +141,10 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerCreatedEventConsumer>>();
 
-        var consumer = new CustomerCreatedEventConsumer(context, logger);
+        var consumer = new CustomerCreatedEventConsumer(context, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
@@ -171,9 +181,10 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerCreatedEventConsumer>>();
 
-        var consumer = new CustomerCreatedEventConsumer(context, logger);
+        var consumer = new CustomerCreatedEventConsumer(context, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
@@ -214,10 +225,11 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
         var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
-        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
@@ -244,7 +256,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var binding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == userId && b.ChannelType == "email");
         Assert.NotNull(binding);
-        Assert.Equal("new@example.com", binding.ChannelIdentifier);
+        Assert.NotEqual("new@example.com", binding.ChannelIdentifier);
+        Assert.Equal("new@example.com", encryption.Decrypt(binding.ChannelIdentifier));
         Assert.False(binding.IsValid);
     }
 
@@ -254,10 +267,11 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
         var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
-        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();
@@ -284,7 +298,8 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         var binding = await context.ChannelBindings
             .FirstOrDefaultAsync(b => b.UserId == userId && b.ChannelType == "sms");
         Assert.NotNull(binding);
-        Assert.Equal("+15559876543", binding.ChannelIdentifier);
+        Assert.NotEqual("+15559876543", binding.ChannelIdentifier);
+        Assert.Equal("+15559876543", encryption.Decrypt(binding.ChannelIdentifier));
         Assert.False(binding.IsValid);
     }
 
@@ -294,10 +309,11 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
         var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
-        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, encryption, logger);
 
         var customerId = Guid.NewGuid();
         // Use a non-JsonElement type for UpdatedFields to trigger InvalidCastException
@@ -336,10 +352,11 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
         var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
-        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var updatedFields = JsonDocument.Parse("{\"email\":\"new@example.com\"}").RootElement;
@@ -359,10 +376,11 @@ public class CustomerEventConsumerTests : IClassFixture<TestWebApplicationFactor
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<CustomerUpdatedEventConsumer>>();
 
         var customerServiceClientMock = new Moq.Mock<Maliev.NotificationService.Api.Services.External.ICustomerServiceClient>();
-        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, logger);
+        var consumer = new CustomerUpdatedEventConsumer(context, customerServiceClientMock.Object, encryption, logger);
 
         var customerId = Guid.NewGuid();
         var userId = customerId.ToString();

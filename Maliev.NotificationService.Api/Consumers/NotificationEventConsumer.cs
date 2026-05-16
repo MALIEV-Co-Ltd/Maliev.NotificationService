@@ -40,9 +40,23 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
 
     public async Task Consume(ConsumeContext<NotificationEvent> context)
     {
-        var notificationEvent = context.Message;
+        await ProcessAsync(context.Message, context.Headers, context.CancellationToken);
+    }
+
+    /// <summary>
+    /// Processes a notification event through the same routing, deduplication, retry, and delivery-log path
+    /// used by the RabbitMQ consumer.
+    /// </summary>
+    /// <param name="notificationEvent">The notification event to process.</param>
+    /// <param name="headers">Optional MassTransit headers when invoked from a consumer.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task ProcessAsync(
+        NotificationEvent notificationEvent,
+        Headers? headers,
+        CancellationToken cancellationToken)
+    {
         var payload = notificationEvent.Payload;
-        var cancellationToken = context.CancellationToken;
 
         try
         {
@@ -54,7 +68,7 @@ public class NotificationEventConsumer : IConsumer<NotificationEvent>
                 payload.TargetUsers.Count);
 
             // Step 1: Check for duplicate events
-            var isRetry = context.Headers.TryGetHeader("X-Is-Retry", out var isRetryObj) && isRetryObj?.ToString() == "true";
+            var isRetry = headers?.TryGetHeader("X-Is-Retry", out var isRetryObj) == true && isRetryObj?.ToString() == "true";
 
             if (isRetry)
             {
