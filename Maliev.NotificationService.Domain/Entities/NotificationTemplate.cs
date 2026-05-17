@@ -12,6 +12,11 @@ public class NotificationTemplate : BaseEntity
     public string TemplateKey { get; set; } = string.Empty;
 
     [Required]
+    [MaxLength(160)]
+    [Column("display_name")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    [Required]
     [Column("version")]
     public int Version { get; set; }
 
@@ -28,6 +33,14 @@ public class NotificationTemplate : BaseEntity
     [Required]
     [Column("content_template")]
     public string ContentTemplate { get; set; } = string.Empty;
+
+    [Required]
+    [Column("subject_template")]
+    public string SubjectTemplate { get; set; } = string.Empty;
+
+    [Required]
+    [Column("is_active")]
+    public bool IsActive { get; set; } = true;
 
     [Required]
     [Column("parameters", TypeName = "jsonb")]

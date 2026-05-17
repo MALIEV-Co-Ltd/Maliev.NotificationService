@@ -134,7 +134,7 @@ public class TemplatesController : ControllerBase
     /// </summary>
     /// <param name="page">Page number (1-based)</param>
     /// <param name="pageSize">Items per page</param>
-    /// <param name="filter">Search filter for TemplateKey</param>
+    /// <param name="filter">Search filter for template key, display name, subject, or content</param>
     /// <returns>Paginated template responses</returns>
     [HttpGet]
     [RequirePermission(NotificationPermissions.TemplatesRead)]
@@ -148,7 +148,12 @@ public class TemplatesController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(filter))
         {
-            query = query.Where(t => t.TemplateKey.Contains(filter));
+            var searchPattern = $"%{filter.Trim()}%";
+            query = query.Where(t =>
+                EF.Functions.ILike(t.TemplateKey, searchPattern) ||
+                EF.Functions.ILike(t.DisplayName, searchPattern) ||
+                EF.Functions.ILike(t.SubjectTemplate, searchPattern) ||
+                EF.Functions.ILike(t.ContentTemplate, searchPattern));
         }
 
         var totalCount = await query.CountAsync();

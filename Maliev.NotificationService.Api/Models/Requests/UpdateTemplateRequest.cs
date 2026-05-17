@@ -9,11 +9,28 @@ namespace Maliev.NotificationService.Api.Models.Requests;
 public partial class UpdateTemplateRequest : IValidatableObject
 {
     /// <summary>
+    /// Updated human-readable template name shown to employees
+    /// </summary>
+    [StringLength(160, ErrorMessage = "DisplayName must be 160 characters or less")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>
     /// Updated template content with {{parameter}} placeholders
     /// </summary>
     [Required(ErrorMessage = "ContentTemplate is required")]
     [StringLength(5000, MinimumLength = 1, ErrorMessage = "ContentTemplate must be between 1 and 5000 characters")]
     public string ContentTemplate { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Updated subject/title template with {{parameter}} placeholders
+    /// </summary>
+    [StringLength(500, ErrorMessage = "SubjectTemplate must be 500 characters or less")]
+    public string? SubjectTemplate { get; set; }
+
+    /// <summary>
+    /// Updated active state for this template version
+    /// </summary>
+    public bool? IsActive { get; set; }
 
     /// <summary>
     /// Updated list of required parameter names
@@ -26,9 +43,9 @@ public partial class UpdateTemplateRequest : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        // Validate that all parameter placeholders in template match the Parameters array
+        // Validate that all parameter placeholders in subject and body match the Parameters array.
         var placeholdersInTemplate = ParameterPlaceholderRegex()
-            .Matches(ContentTemplate)
+            .Matches($"{SubjectTemplate}\n{ContentTemplate}")
             .Select(m => m.Groups[1].Value)
             .Distinct()
             .ToHashSet();

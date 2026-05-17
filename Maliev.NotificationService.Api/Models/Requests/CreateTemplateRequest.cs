@@ -17,6 +17,12 @@ public partial class CreateTemplateRequest : IValidatableObject
     public string TemplateKey { get; set; } = string.Empty;
 
     /// <summary>
+    /// Human-readable template name shown to employees
+    /// </summary>
+    [StringLength(160, ErrorMessage = "DisplayName must be 160 characters or less")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>
     /// Template version number
     /// </summary>
     [Range(1, int.MaxValue, ErrorMessage = "Version must be at least 1")]
@@ -43,6 +49,17 @@ public partial class CreateTemplateRequest : IValidatableObject
     public string ContentTemplate { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional subject/title template with {{parameter}} placeholders
+    /// </summary>
+    [StringLength(500, ErrorMessage = "SubjectTemplate must be 500 characters or less")]
+    public string SubjectTemplate { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Indicates whether the template can be selected for new notifications
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>
     /// List of required parameter names expected in the template
     /// </summary>
     [Required(ErrorMessage = "Parameters array is required (use empty array if no parameters)")]
@@ -64,9 +81,9 @@ public partial class CreateTemplateRequest : IValidatableObject
                 new[] { nameof(TemplateKey) });
         }
 
-        // Validate that all parameter placeholders in template match the Parameters array
+        // Validate that all parameter placeholders in subject and body match the Parameters array.
         var placeholdersInTemplate = ParameterPlaceholderRegex()
-            .Matches(ContentTemplate)
+            .Matches($"{SubjectTemplate}\n{ContentTemplate}")
             .Select(m => m.Groups[1].Value)
             .Distinct()
             .ToHashSet();

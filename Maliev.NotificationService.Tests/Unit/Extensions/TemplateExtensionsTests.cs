@@ -17,10 +17,13 @@ public class TemplateExtensionsTests
         {
             Id = Guid.NewGuid(),
             TemplateKey = "order-confirmed",
+            DisplayName = "Order confirmed",
             Version = 1,
             Language = "en",
             ChannelType = "email",
+            SubjectTemplate = "Order #{{orderId}} confirmed",
             ContentTemplate = "Hello {{name}}, order #{{orderId}} confirmed!",
+            IsActive = true,
             Parameters = new[] { "name", "orderId" },
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -33,10 +36,13 @@ public class TemplateExtensionsTests
         Assert.NotNull(response);
         Assert.Equal(entity.Id, response.Id);
         Assert.Equal(entity.TemplateKey, response.TemplateKey);
+        Assert.Equal(entity.DisplayName, response.DisplayName);
         Assert.Equal(entity.Version, response.Version);
         Assert.Equal(entity.Language, response.Language);
         Assert.Equal(ChannelType.Email, response.ChannelType);
+        Assert.Equal(entity.SubjectTemplate, response.SubjectTemplate);
         Assert.Equal(entity.ContentTemplate, response.ContentTemplate);
+        Assert.Equal(entity.IsActive, response.IsActive);
         Assert.Equal(entity.Parameters, response.Parameters);
         Assert.Equal(entity.CreatedAt, response.CreatedAt);
         Assert.Equal(entity.UpdatedAt, response.UpdatedAt);
@@ -49,10 +55,13 @@ public class TemplateExtensionsTests
         var request = new CreateTemplateRequest
         {
             TemplateKey = "payment-failed",
+            DisplayName = "Payment failed",
             Version = 1,
             Language = "th",
             ChannelType = ChannelType.Sms,
+            SubjectTemplate = "Payment failed: {{amount}}",
             ContentTemplate = "การชำระเงินของคุณ {{amount}} บาท ล้มเหลว",
+            IsActive = false,
             Parameters = new[] { "amount" }
         };
 
@@ -63,10 +72,13 @@ public class TemplateExtensionsTests
         Assert.NotNull(entity);
         Assert.NotEqual(Guid.Empty, entity.Id); // BaseEntity auto-generates GUID
         Assert.Equal(request.TemplateKey, entity.TemplateKey);
+        Assert.Equal(request.DisplayName, entity.DisplayName);
         Assert.Equal(request.Version, entity.Version);
         Assert.Equal(request.Language, entity.Language);
         Assert.Equal("sms", entity.ChannelType);
+        Assert.Equal(request.SubjectTemplate, entity.SubjectTemplate);
         Assert.Equal(request.ContentTemplate, entity.ContentTemplate);
+        Assert.Equal(request.IsActive, entity.IsActive);
         Assert.Equal(request.Parameters, entity.Parameters);
     }
 
@@ -78,10 +90,13 @@ public class TemplateExtensionsTests
         {
             Id = Guid.NewGuid(),
             TemplateKey = "system-outage",
+            DisplayName = "System outage",
             Version = 1,
             Language = "en",
             ChannelType = "email",
+            SubjectTemplate = "Old subject",
             ContentTemplate = "Old template",
+            IsActive = true,
             Parameters = new[] { "oldParam" },
             CreatedAt = DateTime.UtcNow.AddDays(-1),
             UpdatedAt = DateTime.UtcNow.AddDays(-1)
@@ -89,7 +104,10 @@ public class TemplateExtensionsTests
 
         var updateRequest = new UpdateTemplateRequest
         {
+            DisplayName = "Updated outage",
+            SubjectTemplate = "Outage: {{reason}}",
             ContentTemplate = "System outage: {{reason}}. ETA: {{eta}}",
+            IsActive = false,
             Parameters = new[] { "reason", "eta" }
         };
 
@@ -97,7 +115,10 @@ public class TemplateExtensionsTests
         updateRequest.ToEntity(existingEntity);
 
         // Assert
+        Assert.Equal(updateRequest.DisplayName, existingEntity.DisplayName);
+        Assert.Equal(updateRequest.SubjectTemplate, existingEntity.SubjectTemplate);
         Assert.Equal(updateRequest.ContentTemplate, existingEntity.ContentTemplate);
+        Assert.False(existingEntity.IsActive);
         Assert.Equal(updateRequest.Parameters, existingEntity.Parameters);
         // Other properties should remain unchanged
         Assert.Equal("system-outage", existingEntity.TemplateKey);

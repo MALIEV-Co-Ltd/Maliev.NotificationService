@@ -266,9 +266,11 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "order-confirmed",
+                DisplayName = "Order confirmed",
                 Version = 1,
                 Language = "en",
                 ChannelType = "email",
+                SubjectTemplate = "Order #{{orderId}} confirmed",
                 ContentTemplate = "Hello {{name}},\n\nYour order #{{orderId}} has been confirmed!\n\nOrder total: {{amount}}\n\nThank you for your business.",
                 Parameters = new[] { "name", "orderId", "amount" }
             });
@@ -277,9 +279,11 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "order-confirmed",
+                DisplayName = "ยืนยันคำสั่งซื้อ",
                 Version = 1,
                 Language = "th",
                 ChannelType = "email",
+                SubjectTemplate = "ยืนยันคำสั่งซื้อ #{{orderId}}",
                 ContentTemplate = "สวัสดีค่ะ คุณ{{name}}\n\nคำสั่งซื้อหมายเลข #{{orderId}} ของคุณได้รับการยืนยันแล้ว!\n\nยอดรวม: {{amount}}\n\nขอบคุณที่ใช้บริการ",
                 Parameters = new[] { "name", "orderId", "amount" }
             });
@@ -288,9 +292,11 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "payment-failed",
+                DisplayName = "Payment failed",
                 Version = 1,
                 Language = "en",
                 ChannelType = "email",
+                SubjectTemplate = "Payment failed",
                 ContentTemplate = "Hello {{name}},\n\nYour payment of {{amount}} has failed.\n\nReason: {{reason}}\n\nPlease update your payment method and try again.",
                 Parameters = new[] { "name", "amount", "reason" }
             });
@@ -299,9 +305,11 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "payment-failed",
+                DisplayName = "การชำระเงินล้มเหลว",
                 Version = 1,
                 Language = "th",
                 ChannelType = "email",
+                SubjectTemplate = "การชำระเงินล้มเหลว",
                 ContentTemplate = "สวัสดีค่ะ คุณ{{name}}\n\nการชำระเงินจำนวน {{amount}} ของคุณล้มเหลว\n\nเหตุผล: {{reason}}\n\nกรุณาอัพเดทวิธีการชำระเงินและลองใหม่อีกครั้ง",
                 Parameters = new[] { "name", "amount", "reason" }
             });
@@ -310,11 +318,49 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
             {
                 TemplateKey = "system-outage",
+                DisplayName = "System outage alert",
                 Version = 1,
                 Language = "en",
                 ChannelType = "email",
+                SubjectTemplate = "System outage alert: {{service}}",
                 ContentTemplate = "SYSTEM OUTAGE ALERT\n\nService: {{service}}\n\nStatus: {{status}}\n\nEstimated resolution time: {{eta}}\n\nWe apologize for any inconvenience.",
                 Parameters = new[] { "service", "status", "eta" }
+            });
+
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
+            {
+                TemplateKey = "customer-email-follow-up",
+                DisplayName = "Customer follow-up",
+                Version = 1,
+                Language = "en",
+                ChannelType = "email",
+                SubjectTemplate = "Follow-up from MALIEV",
+                ContentTemplate = "Hello {{customerName}},\n\nI wanted to follow up on your request with MALIEV. Please reply with any updates or questions and our team will help from there.\n\nBest regards,\nMALIEV",
+                Parameters = new[] { "customerName" }
+            });
+
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
+            {
+                TemplateKey = "customer-email-document-request",
+                DisplayName = "Request missing customer details",
+                Version = 1,
+                Language = "en",
+                ChannelType = "email",
+                SubjectTemplate = "Documents needed for {{companyName}}",
+                ContentTemplate = "Hello {{customerName}},\n\nTo complete the customer profile for {{companyName}}, please send the missing documents or details when convenient.\n\nBest regards,\nMALIEV",
+                Parameters = new[] { "customerName", "companyName" }
+            });
+
+            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
+            {
+                TemplateKey = "customer-email-quote-follow-up",
+                DisplayName = "Quote follow-up",
+                Version = 1,
+                Language = "en",
+                ChannelType = "email",
+                SubjectTemplate = "Quote follow-up for {{companyName}}",
+                ContentTemplate = "Hello {{customerName}},\n\nI am following up on your MALIEV quotation. Let us know if you would like us to adjust the scope, quantity, material, or delivery schedule.\n\nBest regards,\nMALIEV",
+                Parameters = new[] { "customerName", "companyName" }
             });
 
             await dbContext.SaveChangesAsync();

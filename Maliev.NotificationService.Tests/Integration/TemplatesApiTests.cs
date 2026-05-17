@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Maliev.NotificationService.Api.Authorization;
 using Maliev.NotificationService.Api.Models.Requests;
+using Maliev.NotificationService.Api.Models.Responses;
 using Microsoft.Extensions.DependencyInjection;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using Maliev.NotificationService.Domain.Entities;
@@ -96,6 +97,40 @@ public class TemplatesApiTests : IClassFixture<TestWebApplicationFactory>, IAsyn
         var result = await response.Content.ReadFromJsonAsync<PaginatedTemplateResponse>();
         Assert.NotNull(result);
         Assert.Equal(1, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetTemplates_WithFilter_MatchesMetadata()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+
+        var uniqueTerm = $"customer-docs-{Guid.NewGuid():N}";
+        context.NotificationTemplates.Add(new NotificationTemplate
+        {
+            Id = Guid.NewGuid(),
+            TemplateKey = $"metadata-filter-{Guid.NewGuid():N}",
+            DisplayName = $"Request {uniqueTerm}",
+            SubjectTemplate = $"Need documents for {uniqueTerm}",
+            ChannelType = "email",
+            Language = "en",
+            ContentTemplate = "Please send the missing documents.",
+            IsActive = true,
+            Parameters = Array.Empty<string>(),
+            Version = 1,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var response = await _adminClient.GetAsync($"/notification/v1/templates?filter={uniqueTerm}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedTemplateResponse>();
+        Assert.NotNull(result);
+        var template = Assert.Single(result.Items);
+        Assert.Contains(uniqueTerm, template.DisplayName, StringComparison.Ordinal);
+        Assert.Contains(uniqueTerm, template.SubjectTemplate, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -201,6 +236,74 @@ public class TemplatesApiTests : IClassFixture<TestWebApplicationFactory>, IAsyn
     }
 
     [Fact]
+    public async Task CreateTemplate_WithMetadata_ReturnsMetadata()
+    {
+        var request = new CreateTemplateRequest
+        {
+            TemplateKey = $"customer-email-{Guid.NewGuid():N}",
+            DisplayName = "Customer follow-up",
+            ChannelType = Models.Enums.ChannelType.Email,
+            Language = "en",
+            SubjectTemplate = "Follow-up for {{customerName}}",
+            ContentTemplate = "Hello {{customerName}}, please review your customer profile.",
+            IsActive = true,
+            Parameters = new[] { "customerName" },
+            Version = 1
+        };
+
+        var response = await _adminClient.PostAsJsonAsync("/notification/v1/templates", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<TemplateResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(request.DisplayName, result.DisplayName);
+        Assert.Equal(request.SubjectTemplate, result.SubjectTemplate);
+        Assert.True(result.IsActive);
+    }
+
+    [Fact]
+    public async Task UpdateTemplate_WithMetadata_UpdatesMetadata()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var templateId = Guid.NewGuid();
+        context.NotificationTemplates.Add(new NotificationTemplate
+        {
+            Id = templateId,
+            TemplateKey = $"update-metadata-{Guid.NewGuid():N}",
+            DisplayName = "Old name",
+            ChannelType = "email",
+            Language = "en",
+            SubjectTemplate = "Old subject",
+            ContentTemplate = "Hello {{name}}",
+            IsActive = true,
+            Parameters = new[] { "name" },
+            Version = 1,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var updateRequest = new UpdateTemplateRequest
+        {
+            DisplayName = "Updated customer follow-up",
+            SubjectTemplate = "Updated {{name}}",
+            ContentTemplate = "Hello {{name}}, the template changed.",
+            IsActive = false,
+            Parameters = new[] { "name" }
+        };
+
+        var response = await _adminClient.PutAsJsonAsync($"/notification/v1/templates/{templateId}", updateRequest);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<TemplateResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(updateRequest.DisplayName, result.DisplayName);
+        Assert.Equal(updateRequest.SubjectTemplate, result.SubjectTemplate);
+        Assert.False(result.IsActive);
+    }
+
+    [Fact]
     public async Task UpdateTemplate_UndeclaredParameterInTemplate_ReturnsBadRequest()
     {
         // First create a template to update
@@ -230,7 +333,7 @@ public class TemplatesApiTests : IClassFixture<TestWebApplicationFactory>, IAsyn
     // Minimal DTO for deserializing paginated templates response
     private class PaginatedTemplateResponse
     {
-        public List<object> Items { get; set; } = new();
+        public List<TemplateResponse> Items { get; set; } = new();
         public int TotalCount { get; set; }
         public int Page { get; set; }
         public int PageSize { get; set; }
