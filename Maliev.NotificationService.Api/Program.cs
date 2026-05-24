@@ -1,5 +1,6 @@
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.NotificationService.Api.Configuration;
+using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using Maliev.MessagingContracts.Contracts.Customers;
 using Maliev.MessagingContracts.Contracts.Payments;
@@ -216,8 +217,9 @@ try
 
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    var encryptionService = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
 
-    await SeedDefaultTemplatesAsync(dbContext, logger);
+    await SeedDefaultTemplatesAsync(dbContext, app.Configuration, encryptionService, logger);
     Log.DatabaseSeedingCompleted(logger);
 
     // Initialize metrics (non-blocking)
@@ -252,7 +254,11 @@ finally
 // <summary>
 // Seeds default notification templates for common scenarios
 // </summary>
-static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILogger logger)
+static async Task SeedDefaultTemplatesAsync(
+    NotificationDbContext dbContext,
+    IConfiguration configuration,
+    IEncryptionService encryptionService,
+    ILogger logger)
 {
     var strategy = dbContext.Database.CreateExecutionStrategy();
 
@@ -363,6 +369,9 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
                 Parameters = new[] { "customerName", "companyName" }
             });
 
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageSubmittedEmailTemplate());
+            await SeedContactInboxAsync(dbContext, configuration, encryptionService);
+
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -375,6 +384,74 @@ static async Task SeedDefaultTemplatesAsync(NotificationDbContext dbContext, ILo
             throw;
         }
     });
+}
+
+// <summary>
+// Seeds the website contact inbox notification route if missing.
+// </summary>
+static async Task SeedContactInboxAsync(
+    NotificationDbContext dbContext,
+    IConfiguration configuration,
+    IEncryptionService encryptionService)
+{
+    var preference = await dbContext.UserNotificationPreferences
+        .FirstOrDefaultAsync(p => p.UserId == NotificationBootstrapData.ContactInboxUserId);
+
+    if (preference == null)
+    {
+        dbContext.UserNotificationPreferences.Add(NotificationBootstrapData.CreateContactInboxPreference());
+    }
+    else
+    {
+        preference.PrimaryChannelType = "email";
+        preference.FallbackChannelTypes = [];
+        preference.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    var inboxEmail = NotificationBootstrapData.ResolveContactInboxEmail(configuration);
+    var binding = await dbContext.ChannelBindings
+        .FirstOrDefaultAsync(b =>
+            b.UserId == NotificationBootstrapData.ContactInboxUserId &&
+            b.ChannelType == "email");
+
+    if (binding == null)
+    {
+        dbContext.ChannelBindings.Add(
+            NotificationBootstrapData.CreateContactInboxEmailBinding(encryptionService.Encrypt(inboxEmail)));
+        return;
+    }
+
+    if (ShouldUpdateContactInboxBinding(binding, inboxEmail, encryptionService))
+    {
+        binding.ChannelIdentifier = encryptionService.Encrypt(inboxEmail);
+        binding.IsValid = true;
+        binding.InvalidatedAt = null;
+        binding.InvalidatedReason = null;
+        binding.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+}
+
+// <summary>
+// Determines whether the seeded contact inbox binding needs repair or recipient refresh.
+// </summary>
+static bool ShouldUpdateContactInboxBinding(
+    Maliev.NotificationService.Domain.Entities.ChannelBinding binding,
+    string inboxEmail,
+    IEncryptionService encryptionService)
+{
+    if (!binding.IsValid)
+    {
+        return true;
+    }
+
+    try
+    {
+        return !string.Equals(encryptionService.Decrypt(binding.ChannelIdentifier), inboxEmail, StringComparison.OrdinalIgnoreCase);
+    }
+    catch (InvalidOperationException)
+    {
+        return true;
+    }
 }
 
 // <summary>
