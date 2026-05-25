@@ -51,6 +51,11 @@ public class NotificationRouter : INotificationRouter
         var payload = notificationEvent.Payload;
         try
         {
+            if (IsDirectEmailTarget(targetUser))
+            {
+                return await RouteDirectEmailAsync(notificationEvent, targetUser, cancellationToken);
+            }
+
             // Check if user opted out of this notification category
             var preference = await _dbContext.UserNotificationPreferences
                 .FirstOrDefaultAsync(p => p.UserId == targetUser.UserId, cancellationToken);
@@ -109,7 +114,8 @@ public class NotificationRouter : INotificationRouter
             }
 
             // Render message using template (if templateId provided)
-            var message = await RenderMessageAsync(notificationEvent, primaryChannel, cancellationToken);
+            var renderedNotification = await RenderNotificationAsync(notificationEvent, primaryChannel, cancellationToken);
+            var providerMetadata = BuildProviderMetadata(payload, renderedNotification);
 
             // Decrypt channel identifier before sending to provider
             var decryptedIdentifier = _encryptionService.Decrypt(channelBinding.ChannelIdentifier);
@@ -118,8 +124,8 @@ public class NotificationRouter : INotificationRouter
             var stopwatch = Stopwatch.StartNew();
             var deliveryResult = await provider.SendAsync(
                 decryptedIdentifier,
-                message,
-                new Dictionary<string, string> { { "subject", payload.NotificationType } },
+                renderedNotification.Message,
+                providerMetadata,
                 cancellationToken);
             stopwatch.Stop();
 
@@ -195,8 +201,8 @@ public class NotificationRouter : INotificationRouter
                     var fallbackStopwatch = Stopwatch.StartNew();
                     var fallbackResult = await fallbackProvider.SendAsync(
                         decryptedFallbackIdentifier,
-                        message,
-                        new Dictionary<string, string>(),
+                        renderedNotification.Message,
+                        providerMetadata,
                         cancellationToken);
                     fallbackStopwatch.Stop();
 
@@ -242,6 +248,65 @@ public class NotificationRouter : INotificationRouter
             var isRetryable = ex is not TemplateRenderingException;
             return RoutingResult.Failed($"Routing error: {ex.Message}", isRetryable: isRetryable);
         }
+    }
+
+    private async Task<RoutingResult> RouteDirectEmailAsync(
+        NotificationEvent notificationEvent,
+        NotificationEventPayloadTargetUsersItem targetUser,
+        CancellationToken cancellationToken)
+    {
+        var payload = notificationEvent.Payload;
+        var recipientEmail = GetParameterValue(payload.Parameters, "recipientEmail");
+
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            return RoutingResult.Failed("Direct email target is missing recipientEmail.", selectedChannel: "email");
+        }
+
+        var provider = ResolveChannelProvider("email");
+        if (provider == null)
+        {
+            return RoutingResult.Failed("No provider registered for channel: email", selectedChannel: "email");
+        }
+
+        _logger.LogInformation(
+            "Routing notification to direct email target: UserId={UserId}, EventId={EventId}",
+            targetUser.UserId,
+            notificationEvent.MessageId);
+
+        var renderedNotification = await RenderNotificationAsync(notificationEvent, "email", cancellationToken);
+        var metadata = BuildProviderMetadata(payload, renderedNotification);
+
+        var stopwatch = Stopwatch.StartNew();
+        var deliveryResult = await provider.SendAsync(
+            recipientEmail,
+            renderedNotification.Message,
+            metadata,
+            cancellationToken);
+        stopwatch.Stop();
+
+        NotificationMetrics.DeliveryLatency.Record(
+            stopwatch.ElapsedMilliseconds,
+            new KeyValuePair<string, object?>("channel", "email"),
+            new KeyValuePair<string, object?>("status", deliveryResult.Success ? "success" : "failed"));
+
+        if (deliveryResult.Success)
+        {
+            NotificationMetrics.NotificationsSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "email"),
+                new KeyValuePair<string, object?>("priority", payload.Priority ?? "critical"));
+
+            return RoutingResult.Successful("email", deliveryResult);
+        }
+
+        NotificationMetrics.NotificationsFailed.Add(1,
+            new KeyValuePair<string, object?>("channel", "email"),
+            new KeyValuePair<string, object?>("error_type", deliveryResult.FailureType?.ToString() ?? "unknown"));
+
+        return RoutingResult.Failed(
+            deliveryResult.ErrorMessage ?? "Direct email delivery failed.",
+            deliveryResult.IsRetryable,
+            "email");
     }
 
     /// <summary>
@@ -306,7 +371,7 @@ public class NotificationRouter : INotificationRouter
     /// Renders the notification message using templates.
     /// Falls back to simple parameter substitution if template not found.
     /// </summary>
-    private async Task<string> RenderMessageAsync(
+    private async Task<RenderedNotification> RenderNotificationAsync(
         NotificationEvent notificationEvent,
         string channelType,
         CancellationToken cancellationToken)
@@ -317,7 +382,7 @@ public class NotificationRouter : INotificationRouter
         {
             _logger.LogDebug("No templateId provided, using simple rendering for EventId={EventId}",
                 notificationEvent.MessageId);
-            return RenderSimpleMessage(notificationEvent);
+            return new RenderedNotification(RenderSimpleMessage(notificationEvent), payload.NotificationType);
         }
 
         // Get language from metadata or default to "en"
@@ -341,33 +406,22 @@ public class NotificationRouter : INotificationRouter
                 payload.TemplateId,
                 language,
                 channelType);
-            return RenderSimpleMessage(notificationEvent);
+            return new RenderedNotification(RenderSimpleMessage(notificationEvent), payload.NotificationType);
         }
 
         try
         {
             // Convert parameters to object dictionary for renderer
-            var parameters = new Dictionary<string, object>();
-            if (payload.Parameters is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var prop in jsonElement.EnumerateObject())
-                {
-                    parameters[prop.Name] = prop.Value.ToString();
-                }
-            }
-            else if (payload.Parameters is IDictionary<string, string> dict)
-            {
-                foreach (var (key, value) in dict)
-                {
-                    parameters[key] = value;
-                }
-            }
+            var parameters = ExtractParameterDictionary(payload.Parameters);
 
             // Render template with parameters
             var renderedMessage = _templateRenderer.Render(
                 template.ContentTemplate,
                 template.Parameters,
                 parameters);
+            var renderedSubject = string.IsNullOrWhiteSpace(template.SubjectTemplate)
+                ? payload.NotificationType
+                : _templateRenderer.Render(template.SubjectTemplate, template.Parameters, parameters);
 
             _logger.LogDebug(
                 "Successfully rendered template: TemplateId={TemplateId}, Language={Language}, Channel={Channel}",
@@ -375,7 +429,7 @@ public class NotificationRouter : INotificationRouter
                 language,
                 channelType);
 
-            return renderedMessage;
+            return new RenderedNotification(renderedMessage, renderedSubject);
         }
         catch (TemplateRenderingException ex)
         {
@@ -386,6 +440,91 @@ public class NotificationRouter : INotificationRouter
             throw; // Re-throw to fail the notification delivery
         }
     }
+
+    private static Dictionary<string, string> BuildProviderMetadata(
+        NotificationEventPayload payload,
+        RenderedNotification renderedNotification)
+    {
+        var metadata = new Dictionary<string, string>
+        {
+            ["subject"] = renderedNotification.Subject ?? payload.NotificationType
+        };
+        var recipientName = GetParameterValue(payload.Parameters, "recipientName");
+
+        if (!string.IsNullOrWhiteSpace(recipientName))
+        {
+            metadata["recipientName"] = recipientName;
+        }
+
+        return metadata;
+    }
+
+    private static Dictionary<string, object> ExtractParameterDictionary(object? parameters)
+    {
+        var result = new Dictionary<string, object>();
+
+        if (parameters is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in jsonElement.EnumerateObject())
+            {
+                result[prop.Name] = prop.Value.ToString();
+            }
+        }
+        else if (parameters is IDictionary<string, string> stringDictionary)
+        {
+            foreach (var (key, value) in stringDictionary)
+            {
+                result[key] = value;
+            }
+        }
+        else if (parameters is IDictionary<string, object> objectDictionary)
+        {
+            foreach (var (key, value) in objectDictionary)
+            {
+                result[key] = value;
+            }
+        }
+        else if (parameters is IReadOnlyDictionary<string, string> readOnlyStringDictionary)
+        {
+            foreach (var (key, value) in readOnlyStringDictionary)
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private static string? GetParameterValue(object? parameters, string key)
+    {
+        if (parameters is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+        {
+            return jsonElement.TryGetProperty(key, out var property) ? property.ToString() : null;
+        }
+
+        if (parameters is IDictionary<string, string> stringDictionary &&
+            stringDictionary.TryGetValue(key, out var stringValue))
+        {
+            return stringValue;
+        }
+
+        if (parameters is IDictionary<string, object> objectDictionary &&
+            objectDictionary.TryGetValue(key, out var objectValue))
+        {
+            return objectValue?.ToString();
+        }
+
+        if (parameters is IReadOnlyDictionary<string, string> readOnlyStringDictionary &&
+            readOnlyStringDictionary.TryGetValue(key, out var readOnlyStringValue))
+        {
+            return readOnlyStringValue;
+        }
+
+        return null;
+    }
+
+    private static bool IsDirectEmailTarget(NotificationEventPayloadTargetUsersItem targetUser) =>
+        string.Equals(targetUser.UserType, "direct-email", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Simple message rendering without templates (fallback).
@@ -405,6 +544,8 @@ public class NotificationRouter : INotificationRouter
 
         return message;
     }
+
+    private sealed record RenderedNotification(string Message, string? Subject);
 
     /// <summary>
     /// Invalidates a channel binding when a permanent failure occurs (e.g., invalid recipient).

@@ -16,14 +16,44 @@ public sealed class NotificationBootstrapDataTests
         Assert.Equal("New website contact: {{subject}}", template.SubjectTemplate);
         Assert.Contains("{{fullName}}", template.ContentTemplate, StringComparison.Ordinal);
         Assert.Contains("{{email}}", template.ContentTemplate, StringComparison.Ordinal);
-        Assert.Contains("{{message}}", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.Contains("Open this request in Maliev.Intranet", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{message}}", template.ContentTemplate, StringComparison.Ordinal);
         Assert.Contains("contactId", template.Parameters);
         Assert.Contains("fullName", template.Parameters);
         Assert.Contains("email", template.Parameters);
         Assert.Contains("subject", template.Parameters);
-        Assert.Contains("message", template.Parameters);
+        Assert.DoesNotContain("message", template.Parameters);
         Assert.Contains("attachmentCount", template.Parameters);
         Assert.Contains("attachmentNames", template.Parameters);
+    }
+
+    [Fact]
+    public void CreateContactMessageCustomerCopyEmailTemplate_IncludesCustomerRequestCopy()
+    {
+        var template = NotificationBootstrapData.CreateContactMessageCustomerCopyEmailTemplate();
+
+        Assert.Equal("contact-message-customer-copy", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("MALIEV received your message #{{contactId}}", template.SubjectTemplate);
+        Assert.Contains("{{message}}", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.Contains("{{attachmentNames}}", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.Contains("message", template.Parameters);
+        Assert.Contains("recipientEmail", template.Parameters);
+        Assert.Contains("recipientName", template.Parameters);
+    }
+
+    [Fact]
+    public void CreateContactMessageEmployeeReplyEmailTemplate_IncludesReplyBody()
+    {
+        var template = NotificationBootstrapData.CreateContactMessageEmployeeReplyEmailTemplate();
+
+        Assert.Equal("contact-message-employee-reply", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("MALIEV response for request #{{contactId}}", template.SubjectTemplate);
+        Assert.Contains("{{replyMessage}}", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.Contains("replyMessage", template.Parameters);
+        Assert.Contains("recipientEmail", template.Parameters);
+        Assert.Contains("recipientName", template.Parameters);
     }
 
     [Fact]

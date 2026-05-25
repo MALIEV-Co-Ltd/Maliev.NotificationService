@@ -370,6 +370,8 @@ static async Task SeedDefaultTemplatesAsync(
             });
 
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageSubmittedEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageCustomerCopyEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageEmployeeReplyEmailTemplate());
             await SeedContactInboxAsync(dbContext, configuration, encryptionService);
 
             await dbContext.SaveChangesAsync();

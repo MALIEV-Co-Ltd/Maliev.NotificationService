@@ -9,6 +9,7 @@ using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Tests.Testing;
 using Maliev.NotificationService.Api.Tests.Integration;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Tests.Integration;
 
@@ -200,6 +201,52 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
         Assert.True(result.Success);
         Assert.Equal("email", result.SelectedChannel);
         // Should succeed with simple rendering
+    }
+
+    [Fact]
+    public async Task RouteAsync_DirectEmailTarget_UsesRecipientEmailParameterWithoutChannelBinding()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
+
+        Assert.True(await context.NotificationTemplates.AnyAsync(template =>
+            template.TemplateKey == "contact-message-customer-copy" &&
+            template.ChannelType == "email"));
+
+        var notificationEvent = new NotificationEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "NotificationEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "ContactService",
+            ConsumedBy: ["NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new NotificationEventPayload(
+                NotificationType: "ContactMessageCustomerCopy",
+                Priority: "normal",
+                TargetUsers: [new NotificationEventPayloadTargetUsersItem("contact-message-42-customer", "direct-email")],
+                TemplateId: "contact-message-customer-copy",
+                Parameters: new Dictionary<string, string>
+                {
+                    ["recipientEmail"] = "customer@example.com",
+                    ["recipientName"] = "Website Customer",
+                    ["contactId"] = "42",
+                    ["subject"] = "Manufacturing question",
+                    ["attachmentCount"] = "1",
+                    ["attachmentNames"] = "drawing.pdf",
+                    ["message"] = "Please review this file."
+                },
+                Metadata: new NotificationEventPayloadMetadata("en", "ContactService")));
+
+        var result = await router.RouteAsync(notificationEvent, notificationEvent.Payload.TargetUsers[0]);
+
+        Assert.True(result.Success);
+        Assert.Equal("email", result.SelectedChannel);
+        Assert.False(await context.ChannelBindings.AnyAsync(binding => binding.UserId == "contact-message-42-customer"));
     }
 
     [Fact]
