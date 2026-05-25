@@ -33,7 +33,7 @@ public static class NotificationBootstrapData
         {
             TemplateKey = "contact-message-submitted",
             DisplayName = "Website contact message",
-            Version = 1,
+            Version = 2,
             Language = "en",
             ChannelType = "email",
             SubjectTemplate = "New website contact: {{subject}}",

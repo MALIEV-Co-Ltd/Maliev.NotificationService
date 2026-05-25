@@ -11,6 +11,7 @@ public sealed class NotificationBootstrapDataTests
         var template = NotificationBootstrapData.CreateContactMessageSubmittedEmailTemplate();
 
         Assert.Equal("contact-message-submitted", template.TemplateKey);
+        Assert.Equal(2, template.Version);
         Assert.Equal("email", template.ChannelType);
         Assert.Equal("en", template.Language);
         Assert.Equal("New website contact: {{subject}}", template.SubjectTemplate);
