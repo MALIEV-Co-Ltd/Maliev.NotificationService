@@ -132,6 +132,89 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template for Google SSO customer welcome.
+    /// </summary>
+    /// <returns>The customer welcome Google email template.</returns>
+    public static NotificationTemplate CreateCustomerWelcomeGoogleEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "customer-welcome-google",
+            DisplayName = "Customer welcome (Google SSO)",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Welcome to MALIEV, {{firstName}}!",
+            ContentTemplate =
+                "Hello {{firstName}},\n\n" +
+                "Welcome to MALIEV! Your account has been created successfully using Google SSO.\n\n" +
+                "You can now explore our platform, request quotes, and manage your orders.\n\n" +
+                "Best regards,\nThe MALIEV Team",
+            Parameters =
+            [
+                "firstName",
+                "recipientEmail"
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Creates the email template for email/password customer registration (with verification).
+    /// </summary>
+    /// <returns>The customer welcome email template.</returns>
+    public static NotificationTemplate CreateCustomerWelcomeEmailEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "customer-welcome-email",
+            DisplayName = "Customer welcome (email verification)",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Welcome to MALIEV, {{firstName}}! Verify your email",
+            ContentTemplate =
+                "Hello {{firstName}},\n\n" +
+                "Welcome to MALIEV! Please verify your email address by clicking the link below:\n\n" +
+                "{{verificationUrl}}\n\n" +
+                "This link will expire shortly. If you did not create this account, please ignore this email.\n\n" +
+                "Best regards,\nThe MALIEV Team",
+            Parameters =
+            [
+                "firstName",
+                "verificationUrl",
+                "recipientEmail"
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Creates the email template for email verified confirmation.
+    /// </summary>
+    /// <returns>The email verified confirmation template.</returns>
+    public static NotificationTemplate CreateCustomerEmailVerifiedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "customer-email-verified",
+            DisplayName = "Email verified confirmation",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your email has been verified",
+            ContentTemplate =
+                "Hello {{firstName}},\n\n" +
+                "Your email address has been successfully verified.\n\n" +
+                "You now have full access to your MALIEV account.\n\n" +
+                "Best regards,\nThe MALIEV Team",
+            Parameters =
+            [
+                "firstName",
+                "recipientEmail"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Resolves the contact inbox email recipient from configuration or the public fallback address.
     /// </summary>
     /// <param name="configuration">Application configuration.</param>

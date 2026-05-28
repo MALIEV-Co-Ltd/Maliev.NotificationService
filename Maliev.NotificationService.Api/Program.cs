@@ -140,6 +140,11 @@ try
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerRegisteredEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.VerificationEmailRequestedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.EmailVerifiedEventConsumer>();
 
             // Add RabbitMQ message scheduler for delayed message delivery
             x.AddDelayedMessageScheduler();
@@ -160,6 +165,31 @@ try
             {
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>(context);
+            });
+
+            // Receive endpoint for Customer registration events
+            cfg.ReceiveEndpoint("notification-customer-registered", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.CustomerRegisteredEventConsumer>(context);
+            });
+
+            // Receive endpoint for verification email requests
+            cfg.ReceiveEndpoint("notification-verification-email-requested", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.VerificationEmailRequestedEventConsumer>(context);
+            });
+
+            // Receive endpoint for email verified events
+            cfg.ReceiveEndpoint("notification-email-verified", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.EmailVerifiedEventConsumer>(context);
+            });
+
+            // Receive endpoint for Order lifecycle events
+            cfg.ReceiveEndpoint("notification-order-lifecycle", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>(context);
             });
 
             // Critical notification queue - low prefetch for fast individual processing
@@ -372,6 +402,9 @@ static async Task SeedDefaultTemplatesAsync(
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageSubmittedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageCustomerCopyEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateContactMessageEmployeeReplyEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerWelcomeGoogleEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerWelcomeEmailEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerEmailVerifiedEmailTemplate());
             await SeedContactInboxAsync(dbContext, configuration, encryptionService);
 
             await dbContext.SaveChangesAsync();
