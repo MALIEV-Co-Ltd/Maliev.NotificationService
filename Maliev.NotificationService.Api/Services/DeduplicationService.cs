@@ -1,4 +1,7 @@
 using Maliev.NotificationService.Api.Metrics;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Security.Cryptography;
 using System.Text;
@@ -6,20 +9,24 @@ using System.Text;
 namespace Maliev.NotificationService.Api.Services;
 
 /// <summary>
-/// Redis-based deduplication service using SHA256 hashing and 24-hour TTL.
-/// Implements atomic check-and-set pattern for duplicate detection.
+/// Deduplication service using database atomic insert with Redis as a performance cache.
+/// The database unique constraint on EventId provides true ACID-level atomicity.
+/// Redis provides a fast path to avoid unnecessary DB writes for known duplicates.
 /// </summary>
 public class DeduplicationService : IDeduplicationService
 {
     private readonly IDistributedCache _cache;
+    private readonly NotificationDbContext _dbContext;
     private readonly ILogger<DeduplicationService> _logger;
     private const int CacheTtlHours = 24;
 
     public DeduplicationService(
         IDistributedCache cache,
+        NotificationDbContext dbContext,
         ILogger<DeduplicationService> logger)
     {
         _cache = cache;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -28,29 +35,50 @@ public class DeduplicationService : IDeduplicationService
         DateTimeOffset timestamp,
         CancellationToken cancellationToken = default)
     {
+        var cacheKey = GenerateCacheKey(eventId, timestamp);
+
+        // Fast path: check Redis cache first to avoid DB hit for known duplicates
         try
         {
-            var cacheKey = GenerateCacheKey(eventId, timestamp);
-
-            // Check if entry already exists in cache using an atomic-like pattern if possible
-            // For true atomicity with IDistributedCache, we check if the key is null and set it.
-            // Since IDistributedCache doesn't have SetNX, we use a simple check-then-set
-            // but log that high-concurrency environments should use a Redis-specific NX implementation.
-            var existingValue = await _cache.GetAsync(cacheKey, cancellationToken);
-
-            if (existingValue != null)
+            var cached = await _cache.GetAsync(cacheKey, cancellationToken);
+            if (cached != null)
             {
-                // Increment cache hit counter (duplicate detected)
                 NotificationMetrics.DeduplicationCacheHits.Add(1);
-
-                _logger.LogDebug(
-                    "Duplicate event detected: EventId={EventId}, Timestamp={Timestamp}",
-                    eventId,
-                    timestamp);
-                return true; // Duplicate found
+                _logger.LogDebug("Duplicate event detected via cache: EventId={EventId}", eventId);
+                return true;
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis cache read failed for EventId={EventId}. Falling through to DB check.", eventId);
+        }
 
-            // Entry does not exist, create it
+        // Atomic path: use database unique constraint on EventId
+        // If the INSERT succeeds, this is the first processing attempt.
+        // If a unique constraint violation occurs, another process already claimed this event.
+        try
+        {
+            var entry = new DeduplicationEntry
+            {
+                EventId = eventId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddHours(CacheTtlHours)
+            };
+            _dbContext.DeduplicationEntries.Add(entry);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            NotificationMetrics.DeduplicationCacheMisses.Add(1);
+            _logger.LogDebug("Event registered in deduplication store: EventId={EventId}", eventId);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            NotificationMetrics.DeduplicationCacheHits.Add(1);
+            _logger.LogDebug("Duplicate event detected via DB constraint: EventId={EventId}", eventId);
+            return true;
+        }
+
+        // Populate Redis cache for future fast-path lookups (best effort)
+        try
+        {
             var markerBytes = Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToString("O"));
             await _cache.SetAsync(
                 cacheKey,
@@ -60,28 +88,13 @@ public class DeduplicationService : IDeduplicationService
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CacheTtlHours)
                 },
                 cancellationToken);
-
-            // Increment cache miss counter (unique event)
-            NotificationMetrics.DeduplicationCacheMisses.Add(1);
-
-            _logger.LogDebug(
-                "Event registered in deduplication cache: EventId={EventId}, CacheKey={CacheKey}",
-                eventId,
-                cacheKey);
-
-            return false; // Not a duplicate
         }
         catch (Exception ex)
         {
-            // Fail open: If cache is unavailable, allow the notification through
-            // Better to risk a duplicate than to drop a critical notification
-            _logger.LogError(
-                ex,
-                "Deduplication cache error for EventId={EventId}. Failing open to allow notification delivery.",
-                eventId);
-
-            return false; // Assume not duplicate on error
+            _logger.LogWarning(ex, "Failed to populate Redis cache for EventId={EventId}. Dedup still protected by DB.", eventId);
         }
+
+        return false;
     }
 
     public async Task ClearCacheEntryAsync(
@@ -89,36 +102,42 @@ public class DeduplicationService : IDeduplicationService
         DateTimeOffset timestamp,
         CancellationToken cancellationToken = default)
     {
+        var cacheKey = GenerateCacheKey(eventId, timestamp);
+
         try
         {
-            var cacheKey = GenerateCacheKey(eventId, timestamp);
             await _cache.RemoveAsync(cacheKey, cancellationToken);
-
-            _logger.LogDebug(
-                "Cleared deduplication cache entry: EventId={EventId}",
-                eventId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to clear deduplication cache entry for EventId={EventId}",
-                eventId);
-            throw;
+            _logger.LogWarning(ex, "Failed to clear Redis cache entry for EventId={EventId}", eventId);
         }
+
+        var dbEntry = await _dbContext.DeduplicationEntries
+            .FirstOrDefaultAsync(e => e.EventId == eventId, cancellationToken);
+        if (dbEntry is not null)
+        {
+            _dbContext.DeduplicationEntries.Remove(dbEntry);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        _logger.LogDebug("Cleared deduplication entry: EventId={EventId}", eventId);
     }
 
-    /// <summary>
-    /// Generates a deterministic cache key using SHA256 hash of eventId + timestamp.
-    /// Format: "dedup:{base64(SHA256(eventId:unixTimestamp))}"
-    /// </summary>
     private static string GenerateCacheKey(string eventId, DateTimeOffset timestamp)
     {
         var input = $"{eventId}:{timestamp.ToUnixTimeSeconds()}";
         var inputBytes = Encoding.UTF8.GetBytes(input);
         var hashBytes = SHA256.HashData(inputBytes);
         var hashBase64 = Convert.ToBase64String(hashBytes);
-
         return $"dedup:{hashBase64}";
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message?.Contains("unique", StringComparison.OrdinalIgnoreCase) == true
+            || ex.InnerException?.Message?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true
+            || ex.Message.Contains("unique", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -10,12 +10,13 @@ public class NotificationDbContext : DbContext
     {
     }
 
-    public DbSet<DeliveryLog> DeliveryLogs => Set<DeliveryLog>();
-    public DbSet<RetryQueueEntry> RetryQueueEntries => Set<RetryQueueEntry>();
-    public DbSet<DeadLetterRecord> DeadLetterRecords => Set<DeadLetterRecord>();
-    public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
-    public DbSet<ChannelBinding> ChannelBindings => Set<ChannelBinding>();
-    public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public virtual DbSet<DeliveryLog> DeliveryLogs => Set<DeliveryLog>();
+    public virtual DbSet<RetryQueueEntry> RetryQueueEntries => Set<RetryQueueEntry>();
+    public virtual DbSet<DeadLetterRecord> DeadLetterRecords => Set<DeadLetterRecord>();
+    public virtual DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
+    public virtual DbSet<ChannelBinding> ChannelBindings => Set<ChannelBinding>();
+    public virtual DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public virtual DbSet<DeduplicationEntry> DeduplicationEntries => Set<DeduplicationEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,6 +85,18 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsValid);
             entity.HasIndex(e => new { e.UserId, e.ChannelType }).IsUnique();
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<DeduplicationEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.EventId).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
 
             entity.Property<uint>("xmin")
                 .HasColumnType("xid")

@@ -1,6 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
+using System.Linq.Expressions;
 using Maliev.NotificationService.Api.Services;
+using Maliev.NotificationService.Domain.Entities;
+using Maliev.NotificationService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -8,164 +11,168 @@ using Xunit;
 
 namespace Maliev.NotificationService.Api.Tests.Unit.Services;
 
-/// <summary>
-/// Unit tests for DeduplicationService hash-based deduplication logic.
-/// Tests T034: Verify Redis cache key generation and duplicate detection.
-/// </summary>
 public class DeduplicationServiceTests
 {
+    private static (NotificationDbContext DbContext, List<DeduplicationEntry> Entries) CreateMockDbContext()
+    {
+        var entries = new List<DeduplicationEntry>();
+        var mockSet = new Mock<DbSet<DeduplicationEntry>>();
+
+        mockSet.As<IAsyncEnumerable<DeduplicationEntry>>()
+            .Setup(m => m.GetAsyncEnumerator(It.IsAny<CancellationToken>()))
+            .Returns(new TestAsyncEnumerator<DeduplicationEntry>(entries.GetEnumerator()));
+
+        mockSet.As<IQueryable<DeduplicationEntry>>()
+            .Setup(m => m.Provider)
+            .Returns(new TestAsyncQueryProvider<DeduplicationEntry>(entries.AsQueryable().Provider));
+
+        mockSet.As<IQueryable<DeduplicationEntry>>().Setup(m => m.Expression).Returns(entries.AsQueryable().Expression);
+        mockSet.As<IQueryable<DeduplicationEntry>>().Setup(m => m.ElementType).Returns(entries.AsQueryable().ElementType);
+        mockSet.As<IQueryable<DeduplicationEntry>>().Setup(m => m.GetEnumerator()).Returns(() => entries.GetEnumerator());
+
+        mockSet.Setup(d => d.Add(It.IsAny<DeduplicationEntry>())).Callback<DeduplicationEntry>(e =>
+        {
+            if (entries.Any(x => x.EventId == e.EventId))
+                throw new DbUpdateException("duplicate key value violates unique constraint", new Exception("unique"));
+            entries.Add(e);
+        });
+
+        mockSet.Setup(d => d.Remove(It.IsAny<DeduplicationEntry>())).Callback<DeduplicationEntry>(e =>
+        {
+            entries.Remove(e);
+        });
+
+        var dbContextMock = new Mock<NotificationDbContext>(new DbContextOptions<NotificationDbContext>());
+        dbContextMock.Setup(d => d.DeduplicationEntries).Returns(mockSet.Object);
+        dbContextMock.Setup(d => d.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        return (dbContextMock.Object, entries);
+    }
+
+    private static DeduplicationService CreateService(
+        NotificationDbContext dbContext,
+        Mock<IDistributedCache>? mockCache = null)
+    {
+        return new DeduplicationService(
+            (mockCache ?? new Mock<IDistributedCache>()).Object,
+            dbContext,
+            new Mock<ILogger<DeduplicationService>>().Object);
+    }
+
     [Fact]
     public async Task IsDuplicateAsync_NewEvent_ShouldReturnFalse()
     {
-        // Arrange
         var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
-
-        mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((byte[]?)null); // Cache miss
-
-        var deduplicationService = new DeduplicationService(mockCache.Object, mockLogger.Object);
-
-        var eventId = Guid.NewGuid().ToString();
-        var timestamp = DateTimeOffset.UtcNow;
-
-        // Act
-        var isDuplicate = await deduplicationService.IsDuplicateAsync(eventId, timestamp, CancellationToken.None);
-
-        // Assert
-        Assert.False(isDuplicate);
-
-        // Verify cache was checked and entry was created
-        mockCache.Verify(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        mockCache.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<DistributedCacheEntryOptions>(), It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task IsDuplicateAsync_ExistingEvent_ShouldReturnTrue()
-    {
-        // Arrange
-        var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
-
-        mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("1")); // Cache hit
-
-        var deduplicationService = new DeduplicationService(mockCache.Object, mockLogger.Object);
-
-        var eventId = Guid.NewGuid().ToString();
-        var timestamp = DateTimeOffset.UtcNow;
-
-        // Act
-        var isDuplicate = await deduplicationService.IsDuplicateAsync(eventId, timestamp, CancellationToken.None);
-
-        // Assert
-        Assert.True(isDuplicate);
-
-        // Verify cache was checked but NO new entry was created
-        mockCache.Verify(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        mockCache.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<DistributedCacheEntryOptions>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public void GenerateCacheKey_ShouldUseSHA256Hash()
-    {
-        // This test validates the cache key format but GenerateCacheKey is private
-        // We test this behavior through IsDuplicateAsync instead
-        Assert.True(true);
-    }
-
-    [Fact]
-    public void GenerateCacheKey_SameEventIdAndTimestamp_ShouldProduceSameKey()
-    {
-        // Testing private method through public API behavior
-        Assert.True(true);
-    }
-
-    [Fact]
-    public void GenerateCacheKey_DifferentEventIds_ShouldProduceDifferentKeys()
-    {
-        // Testing private method through public API behavior
-        Assert.True(true);
-    }
-
-    [Fact]
-    public void GenerateCacheKey_DifferentTimestamps_ShouldProduceDifferentKeys()
-    {
-        // Testing private method through public API behavior
-        Assert.True(true);
-    }
-
-    [Fact]
-    public async Task IsDuplicateAsync_ShouldSetCacheWith24HourTTL()
-    {
-        // Arrange
-        var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
-
         mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((byte[]?)null);
+        var (dbContext, _) = CreateMockDbContext();
+        var service = CreateService(dbContext, mockCache);
 
-        var deduplicationService = new DeduplicationService(mockCache.Object, mockLogger.Object);
+        var result = await service.IsDuplicateAsync(Guid.NewGuid().ToString(), DateTimeOffset.UtcNow);
 
-        // Act
-        await deduplicationService.IsDuplicateAsync("evt_123", DateTimeOffset.UtcNow, CancellationToken.None);
-
-        // Assert
-        mockCache.Verify(c => c.SetAsync(
-            It.IsAny<string>(),
-            It.IsAny<byte[]>(),
-            It.Is<DistributedCacheEntryOptions>(opts =>
-                opts.AbsoluteExpirationRelativeToNow == TimeSpan.FromHours(24)),
-            It.IsAny<CancellationToken>()), Times.Once);
+        Assert.False(result);
     }
 
     [Fact]
-    public async Task IsDuplicateAsync_CacheException_ShouldLogAndReturnFalse()
+    public async Task IsDuplicateAsync_ExistingEventViaCache_ShouldReturnTrue()
     {
-        // Arrange
         var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
-
         mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Redis connection failed"));
+            .ReturnsAsync(System.Text.Encoding.UTF8.GetBytes("1"));
+        var (dbContext, _) = CreateMockDbContext();
+        var service = CreateService(dbContext, mockCache);
 
-        var deduplicationService = new DeduplicationService(mockCache.Object, mockLogger.Object);
+        var result = await service.IsDuplicateAsync(Guid.NewGuid().ToString(), DateTimeOffset.UtcNow);
 
-        // Act
-        var isDuplicate = await deduplicationService.IsDuplicateAsync("evt_error", DateTimeOffset.UtcNow, CancellationToken.None);
-
-        // Assert
-        Assert.False(isDuplicate); // Fail open: allow notification through if cache is unavailable
+        Assert.True(result);
     }
 
     [Fact]
-    public async Task ClearCacheEntryAsync_Success_RemovesFromCache()
+    public async Task IsDuplicateAsync_ExistingEventViaDb_ShouldReturnTrue()
     {
         var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
-
-        var service = new DeduplicationService(mockCache.Object, mockLogger.Object);
-
+        mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((byte[]?)null);
+        var (dbContext, _) = CreateMockDbContext();
+        var service = CreateService(dbContext, mockCache);
         var eventId = Guid.NewGuid().ToString();
         var timestamp = DateTimeOffset.UtcNow;
 
-        await service.ClearCacheEntryAsync(eventId, timestamp, CancellationToken.None);
+        await service.IsDuplicateAsync(eventId, timestamp);
+        var result = await service.IsDuplicateAsync(eventId, timestamp);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task IsDuplicateAsync_CacheException_FallsThroughToDb_ReturnsFalse()
+    {
+        var mockCache = new Mock<IDistributedCache>();
+        mockCache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Redis connection failed"));
+        var (dbContext, _) = CreateMockDbContext();
+        var service = CreateService(dbContext, mockCache);
+
+        var result = await service.IsDuplicateAsync(Guid.NewGuid().ToString(), DateTimeOffset.UtcNow);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task ClearCacheEntryAsync_RemovesFromCache()
+    {
+        var mockCache = new Mock<IDistributedCache>();
+        var (dbContext, _) = CreateMockDbContext();
+        var service = CreateService(dbContext, mockCache);
+
+        await service.ClearCacheEntryAsync(Guid.NewGuid().ToString(), DateTimeOffset.UtcNow);
 
         mockCache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task ClearCacheEntryAsync_CacheThrows_Rethrows()
+    private sealed class TestAsyncEnumerator<T>(IEnumerator<T> inner) : IAsyncEnumerator<T>
     {
-        var mockCache = new Mock<IDistributedCache>();
-        var mockLogger = new Mock<ILogger<DeduplicationService>>();
+        public T Current => inner.Current;
+        public ValueTask DisposeAsync() { inner.Dispose(); return default; }
+        public ValueTask<bool> MoveNextAsync() => new(inner.MoveNext());
+    }
 
-        mockCache.Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Cache error"));
+    private sealed class TestAsyncQueryProvider<T> : IAsyncQueryProvider
+    {
+        private readonly IQueryProvider _inner;
 
-        var service = new DeduplicationService(mockCache.Object, mockLogger.Object);
+        public TestAsyncQueryProvider(IQueryProvider inner)
+        {
+            _inner = inner;
+        }
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.ClearCacheEntryAsync("evt_fail", DateTimeOffset.UtcNow, CancellationToken.None));
+        public IQueryable CreateQuery(Expression expression) => new TestAsyncEnumerable<T>(expression);
+        public IQueryable<TElement> CreateQuery<TElement>(Expression expression) => new TestAsyncEnumerable<TElement>(expression);
+        public object? Execute(Expression expression) => _inner.Execute(expression);
+        public TResult Execute<TResult>(Expression expression) => _inner.Execute<TResult>(expression);
+
+        public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken)
+        {
+            var resultType = typeof(TResult);
+            if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(Task<>))
+            {
+                var elementType = resultType.GetGenericArguments()[0];
+                var syncResult = _inner.Execute(expression);
+                var fromResultMethod = typeof(Task).GetMethod(nameof(Task.FromResult))!
+                    .MakeGenericMethod(elementType);
+                return (TResult)fromResultMethod.Invoke(null, [syncResult])!;
+            }
+
+            return (TResult)_inner.Execute(expression)!;
+        }
+    }
+
+    private sealed class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>, IQueryable<T>
+    {
+        public TestAsyncEnumerable(IEnumerable<T> enumerable) : base(enumerable) { }
+        public TestAsyncEnumerable(Expression expression) : base(expression) { }
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+            new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
+        IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
     }
 }

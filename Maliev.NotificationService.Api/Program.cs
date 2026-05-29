@@ -192,7 +192,7 @@ try
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>(context);
             });
 
-            // Critical notification queue - low prefetch for fast individual processing
+            // Critical notification queue — reserved for topic-routed critical priority events
             cfg.ReceiveEndpoint("notification-critical", e =>
             {
                 e.Bind("maliev.notifications", s =>
@@ -201,25 +201,16 @@ try
                     s.ExchangeType = "topic";
                 });
 
-                e.PrefetchCount = 10; // Lower prefetch for faster processing
+                e.PrefetchCount = 10;
                 e.ConcurrentMessageLimit = 10;
-
-                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>(context);
 
                 // Retry policy: 3 attempts with exponential backoff (1s, 2s, 4s)
                 e.UseMessageRetry(r => r.Intervals(1000, 2000, 4000));
             });
 
-            // Standard notification queue - higher prefetch for batch efficiency
+            // Standard notification queue — higher prefetch for batch efficiency
             cfg.ReceiveEndpoint("notification-standard", e =>
             {
-                e.Bind<Maliev.MessagingContracts.Contracts.Shared.NotificationEvent>();
-                e.Bind("maliev.notifications", s =>
-                {
-                    s.RoutingKey = "maliev.notification.v1.*.standard";
-                    s.ExchangeType = "topic";
-                });
-
                 e.PrefetchCount = 50; // Higher prefetch for throughput
                 e.ConcurrentMessageLimit = 50;
 
