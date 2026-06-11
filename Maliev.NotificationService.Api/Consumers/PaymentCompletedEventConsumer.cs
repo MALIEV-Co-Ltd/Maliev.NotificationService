@@ -4,6 +4,7 @@ using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Api.Consumers
 {
@@ -30,6 +31,22 @@ namespace Maliev.NotificationService.Api.Consumers
                 "[NotificationService] Received PaymentCompletedEvent for Order ID: {OrderId}, Payment ID: {PaymentId}. Preparing to send notification.",
                 payload.OrderId,
                 payload.PaymentId);
+
+            var eventId = context.Message.MessageId.ToString();
+            var alreadyReceived = await _dbContext.DeliveryLogs
+                .AsNoTracking()
+                .AnyAsync(
+                    log => log.EventId == eventId && log.UserId == payload.CustomerId,
+                    context.CancellationToken);
+
+            if (alreadyReceived)
+            {
+                _logger.LogInformation(
+                    "[NotificationService] Skipping duplicate PaymentCompletedEvent {MessageId} for customer {CustomerId}",
+                    context.Message.MessageId,
+                    payload.CustomerId);
+                return;
+            }
 
             var notificationEvent = new NotificationEvent(
                 MessageId: Guid.NewGuid(),
@@ -106,7 +123,7 @@ namespace Maliev.NotificationService.Api.Consumers
             // Create delivery log entry to track that we received this event
             var deliveryLog = new DeliveryLog
             {
-                EventId = context.Message.MessageId.ToString(),
+                EventId = eventId,
                 UserId = payload.CustomerId,
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = $"payment-{payload.PaymentId}",
@@ -119,7 +136,7 @@ namespace Maliev.NotificationService.Api.Consumers
             };
 
             _dbContext.DeliveryLogs.Add(deliveryLog);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(context.CancellationToken);
 
             _logger.LogInformation(
                 "[NotificationService] Published customer notification and created delivery log {DeliveryLogId} for PaymentCompletedEvent {MessageId}",

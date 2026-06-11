@@ -7,6 +7,7 @@ using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Contracts.Payments;
 using Maliev.NotificationService.Api.Consumers;
 using Maliev.NotificationService.Api.Services;
+using Maliev.NotificationService.Domain.Entities;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
@@ -22,6 +23,74 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
     public PaymentCompletedEventConsumerTests(BaseIntegrationTestFactory<Program, NotificationDbContext> factory)
     {
         _factory = factory;
+    }
+
+    [Fact]
+    public async Task Consume_PaymentCompletedEvent_WhenAlreadyReceived_ShouldNotPublishDuplicateNotifications()
+    {
+        // Arrange
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+
+        var consumer = new PaymentCompletedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid().ToString();
+        var orderId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid();
+
+        context.DeliveryLogs.Add(new DeliveryLog
+        {
+            EventId = messageId.ToString(),
+            UserId = customerId,
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = $"payment-{paymentId}",
+            Status = "received",
+            MessageContent = "Payment completed: Order ORD-123, Amount 100 USD",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var evt = new PaymentCompletedEvent(
+            MessageId: messageId,
+            MessageName: "PaymentCompletedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentCompletedEventPayload(
+                OrderId: orderId,
+                OrderNumber: "ORD-123",
+                CustomerId: customerId,
+                PaymentId: paymentId,
+                Amount: 100,
+                Currency: "USD"
+            )
+        );
+
+        var mockContext = new Mock<ConsumeContext<PaymentCompletedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        // Act
+        await consumer.Consume(mockContext.Object);
+
+        // Assert
+        var logs = await context.DeliveryLogs.Where(l => l.EventId == messageId.ToString()).ToListAsync();
+        Assert.Single(logs);
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
