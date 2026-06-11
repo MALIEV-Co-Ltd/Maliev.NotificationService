@@ -138,6 +138,7 @@ try
         {
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentFailedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>();
@@ -158,6 +159,7 @@ try
             cfg.ReceiveEndpoint("notification-payment-completed", e =>
             {
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentFailedEventConsumer>(context);
             });
 
             // Receive endpoint for Customer events
