@@ -105,6 +105,23 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateOperationsJobCompletedQcReadyEmailTemplate_DefinesQcIntakeTemplate()
+    {
+        var template = NotificationBootstrapData.CreateOperationsJobCompletedQcReadyEmailTemplate();
+
+        Assert.Equal("operations-job-completed-qc-ready", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Job {{jobId}} is ready for QC intake", template.SubjectTemplate);
+        Assert.Contains("QC intake", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("jobId", template.Parameters);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("technology", template.Parameters);
+        Assert.Contains("assignedMachineId", template.Parameters);
+        Assert.Contains("completedAt", template.Parameters);
+        Assert.Contains("changedBy", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
     {
         var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");

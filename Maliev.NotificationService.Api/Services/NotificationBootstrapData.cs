@@ -178,6 +178,41 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to operations when a production job is ready for QC intake.
+    /// </summary>
+    /// <returns>The default operations job completed QC-ready email template.</returns>
+    public static NotificationTemplate CreateOperationsJobCompletedQcReadyEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "operations-job-completed-qc-ready",
+            DisplayName = "Operations job completed QC ready",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Job {{jobId}} is ready for QC intake",
+            ContentTemplate =
+                "A production job has been completed and is ready for QC intake.\n\n" +
+                "Job: {{jobId}}\n" +
+                "Order: {{orderId}}\n" +
+                "Technology: {{technology}}\n" +
+                "Machine: {{assignedMachineId}}\n" +
+                "Completed at: {{completedAt}}\n" +
+                "Completed by: {{changedBy}}\n\n" +
+                "Open Maliev.Intranet to run QC, release accepted parts, or route issues back to production.",
+            Parameters =
+            [
+                "jobId",
+                "orderId",
+                "technology",
+                "assignedMachineId",
+                "completedAt",
+                "changedBy"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>
