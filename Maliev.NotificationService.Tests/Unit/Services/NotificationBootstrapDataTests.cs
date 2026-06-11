@@ -148,6 +148,21 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateCustomerOrderShippedEmailTemplate_DefinesTrackingTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerOrderShippedEmailTemplate();
+
+        Assert.Equal("order-shipped", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Your MALIEV order {{orderId}} has shipped", template.SubjectTemplate);
+        Assert.Contains("{{trackingNumber}}", template.ContentTemplate, StringComparison.Ordinal);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("carrier", template.Parameters);
+        Assert.Contains("trackingNumber", template.Parameters);
+        Assert.Contains("estimatedDeliveryDate", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
     {
         var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");

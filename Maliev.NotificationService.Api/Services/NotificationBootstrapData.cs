@@ -269,6 +269,38 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to customers when an order ships.
+    /// </summary>
+    /// <returns>The default customer order shipped email template.</returns>
+    public static NotificationTemplate CreateCustomerOrderShippedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "order-shipped",
+            DisplayName = "Customer order shipped",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV order {{orderId}} has shipped",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Your MALIEV order {{orderId}} has shipped.\n\n" +
+                "Carrier: {{carrier}}\n" +
+                "Tracking number: {{trackingNumber}}\n" +
+                "Estimated delivery: {{estimatedDeliveryDate}}\n\n" +
+                "Keep this email for your shipment records.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "carrier",
+                "trackingNumber",
+                "estimatedDeliveryDate"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>
