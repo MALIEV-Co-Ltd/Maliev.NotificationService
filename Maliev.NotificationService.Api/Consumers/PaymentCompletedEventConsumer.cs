@@ -1,5 +1,6 @@
 using Maliev.MessagingContracts.Contracts.Payments;
 using Maliev.MessagingContracts.Contracts.Shared;
+using Maliev.NotificationService.Api.Services;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
@@ -65,6 +66,42 @@ namespace Maliev.NotificationService.Api.Consumers
             );
 
             await _publishEndpoint.Publish(notificationEvent, context.CancellationToken);
+
+            var operationsNotificationEvent = new NotificationEvent(
+                MessageId: Guid.NewGuid(),
+                MessageName: "PaymentReceivedOperationsNotification",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "NotificationService",
+                ConsumedBy: new[] { "NotificationService" },
+                CorrelationId: context.Message.CorrelationId,
+                CausationId: context.Message.MessageId,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: false,
+                Payload: new NotificationEventPayload(
+                    NotificationType: "PaymentReceivedOperations",
+                    Priority: "Critical",
+                    TargetUsers: new[]
+                    {
+                        new NotificationEventPayloadTargetUsersItem(
+                            NotificationBootstrapData.OperationsInboxUserId,
+                            "staff")
+                    },
+                    TemplateId: "operations-payment-received",
+                    Parameters: new Dictionary<string, object>
+                    {
+                        ["orderId"] = payload.OrderNumber,
+                        ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                        ["paymentId"] = payload.PaymentId.ToString(),
+                        ["customerId"] = payload.CustomerId
+                    },
+                    Metadata: new NotificationEventPayloadMetadata(
+                        Language: "en",
+                        Source: "PaymentService")
+                )
+            );
+
+            await _publishEndpoint.Publish(operationsNotificationEvent, context.CancellationToken);
 
             // Create delivery log entry to track that we received this event
             var deliveryLog = new DeliveryLog

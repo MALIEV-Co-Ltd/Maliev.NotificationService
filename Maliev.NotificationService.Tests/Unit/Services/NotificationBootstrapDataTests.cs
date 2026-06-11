@@ -88,4 +88,41 @@ public sealed class NotificationBootstrapDataTests
         Assert.Empty(preference.FallbackChannelTypes);
         Assert.Empty(preference.OptOutCategories);
     }
+
+    [Fact]
+    public void CreateOperationsPaymentReceivedEmailTemplate_DefinesPaidOrderOperationsTemplate()
+    {
+        var template = NotificationBootstrapData.CreateOperationsPaymentReceivedEmailTemplate();
+
+        Assert.Equal("operations-payment-received", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Payment received for {{orderId}}", template.SubjectTemplate);
+        Assert.Contains("production queue", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("amount", template.Parameters);
+        Assert.Contains("paymentId", template.Parameters);
+        Assert.Contains("customerId", template.Parameters);
+    }
+
+    [Fact]
+    public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
+    {
+        var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");
+
+        Assert.Equal("maliev-operations-inbox", binding.UserId);
+        Assert.Equal("email", binding.ChannelType);
+        Assert.Equal("encrypted-ops-address", binding.ChannelIdentifier);
+        Assert.True(binding.IsValid);
+    }
+
+    [Fact]
+    public void CreateOperationsInboxPreference_RoutesInboxUserToEmailOnly()
+    {
+        var preference = NotificationBootstrapData.CreateOperationsInboxPreference();
+
+        Assert.Equal("maliev-operations-inbox", preference.UserId);
+        Assert.Equal("email", preference.PrimaryChannelType);
+        Assert.Empty(preference.FallbackChannelTypes);
+        Assert.Empty(preference.OptOutCategories);
+    }
 }

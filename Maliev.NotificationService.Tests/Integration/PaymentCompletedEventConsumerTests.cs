@@ -6,6 +6,7 @@ using Maliev.MessagingContracts;
 using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.MessagingContracts.Contracts.Payments;
 using Maliev.NotificationService.Api.Consumers;
+using Maliev.NotificationService.Api.Services;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
@@ -89,6 +90,24 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
                     HasParameter(notificationEvent.Payload.Parameters, "orderId", "ORD-123") &&
                     HasParameter(notificationEvent.Payload.Parameters, "amount", "100.00 USD") &&
                     HasParameter(notificationEvent.Payload.Parameters, "paymentId", paymentId.ToString())),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.CausationId == messageId &&
+                    notificationEvent.CorrelationId == evt.CorrelationId &&
+                    notificationEvent.Payload.NotificationType == "PaymentReceivedOperations" &&
+                    notificationEvent.Payload.Priority == "Critical" &&
+                    notificationEvent.Payload.TemplateId == "operations-payment-received" &&
+                    notificationEvent.Payload.TargetUsers.Count == 1 &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == NotificationBootstrapData.OperationsInboxUserId &&
+                    notificationEvent.Payload.TargetUsers[0].UserType == "staff" &&
+                    HasParameter(notificationEvent.Payload.Parameters, "orderId", "ORD-123") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "amount", "100.00 USD") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "paymentId", paymentId.ToString()) &&
+                    HasParameter(notificationEvent.Payload.Parameters, "customerId", customerId)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

@@ -398,7 +398,9 @@ static async Task SeedDefaultTemplatesAsync(
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerWelcomeGoogleEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerWelcomeEmailEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerEmailVerifiedEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsPaymentReceivedEmailTemplate());
             await SeedContactInboxAsync(dbContext, configuration, encryptionService);
+            await SeedOperationsInboxAsync(dbContext, configuration, encryptionService);
 
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -479,6 +481,51 @@ static bool ShouldUpdateContactInboxBinding(
     catch (InvalidOperationException)
     {
         return true;
+    }
+}
+
+// <summary>
+// Seeds the employee operations inbox notification route if missing.
+// </summary>
+static async Task SeedOperationsInboxAsync(
+    NotificationDbContext dbContext,
+    IConfiguration configuration,
+    IEncryptionService encryptionService)
+{
+    var preference = await dbContext.UserNotificationPreferences
+        .FirstOrDefaultAsync(p => p.UserId == NotificationBootstrapData.OperationsInboxUserId);
+
+    if (preference == null)
+    {
+        dbContext.UserNotificationPreferences.Add(NotificationBootstrapData.CreateOperationsInboxPreference());
+    }
+    else
+    {
+        preference.PrimaryChannelType = "email";
+        preference.FallbackChannelTypes = [];
+        preference.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    var inboxEmail = NotificationBootstrapData.ResolveOperationsInboxEmail(configuration);
+    var binding = await dbContext.ChannelBindings
+        .FirstOrDefaultAsync(b =>
+            b.UserId == NotificationBootstrapData.OperationsInboxUserId &&
+            b.ChannelType == "email");
+
+    if (binding == null)
+    {
+        dbContext.ChannelBindings.Add(
+            NotificationBootstrapData.CreateOperationsInboxEmailBinding(encryptionService.Encrypt(inboxEmail)));
+        return;
+    }
+
+    if (ShouldUpdateContactInboxBinding(binding, inboxEmail, encryptionService))
+    {
+        binding.ChannelIdentifier = encryptionService.Encrypt(inboxEmail);
+        binding.IsValid = true;
+        binding.InvalidatedAt = null;
+        binding.InvalidatedReason = null;
+        binding.UpdatedAt = DateTimeOffset.UtcNow;
     }
 }
 

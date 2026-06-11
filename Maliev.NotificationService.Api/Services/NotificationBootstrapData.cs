@@ -14,14 +14,29 @@ public static class NotificationBootstrapData
     public const string ContactInboxUserId = "maliev-contact-inbox";
 
     /// <summary>
+    /// Stable notification user id for employee operations notifications.
+    /// </summary>
+    public const string OperationsInboxUserId = "maliev-operations-inbox";
+
+    /// <summary>
     /// Configuration key for the website contact inbox email recipient.
     /// </summary>
     public const string ContactInboxEmailConfigurationKey = "Notification:ContactInbox:Email";
 
     /// <summary>
+    /// Configuration key for the employee operations inbox email recipient.
+    /// </summary>
+    public const string OperationsInboxEmailConfigurationKey = "Notification:OperationsInbox:Email";
+
+    /// <summary>
     /// Public fallback inbox address used when no deployment-specific recipient is configured.
     /// </summary>
     public const string DefaultContactInboxEmail = "info@maliev.com";
+
+    /// <summary>
+    /// Public fallback operations address used when no deployment-specific recipient is configured.
+    /// </summary>
+    public const string DefaultOperationsInboxEmail = "operations@maliev.com";
 
     /// <summary>
     /// Creates the default email template used for website contact form submissions.
@@ -132,6 +147,37 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to operations when a customer payment is received.
+    /// </summary>
+    /// <returns>The default operations payment received email template.</returns>
+    public static NotificationTemplate CreateOperationsPaymentReceivedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "operations-payment-received",
+            DisplayName = "Operations payment received",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Payment received for {{orderId}}",
+            ContentTemplate =
+                "A customer payment has been received and the order is ready for production queue review.\n\n" +
+                "Order: {{orderId}}\n" +
+                "Amount: {{amount}}\n" +
+                "Payment ID: {{paymentId}}\n" +
+                "Customer ID: {{customerId}}\n\n" +
+                "Open Maliev.Intranet to confirm material locks, production planning, job tickets, and employee assignments.",
+            Parameters =
+            [
+                "orderId",
+                "amount",
+                "paymentId",
+                "customerId"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>
@@ -226,6 +272,17 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Resolves the operations inbox email recipient from configuration or the public fallback address.
+    /// </summary>
+    /// <param name="configuration">Application configuration.</param>
+    /// <returns>The operations inbox email recipient.</returns>
+    public static string ResolveOperationsInboxEmail(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return configuration[OperationsInboxEmailConfigurationKey] ?? DefaultOperationsInboxEmail;
+    }
+
+    /// <summary>
     /// Creates the default contact inbox email channel binding.
     /// </summary>
     /// <param name="encryptedEmail">Encrypted email address for the channel binding.</param>
@@ -244,6 +301,24 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the default operations inbox email channel binding.
+    /// </summary>
+    /// <param name="encryptedEmail">Encrypted email address for the channel binding.</param>
+    /// <returns>The default operations inbox email binding.</returns>
+    public static ChannelBinding CreateOperationsInboxEmailBinding(string encryptedEmail)
+    {
+        return new ChannelBinding
+        {
+            UserId = OperationsInboxUserId,
+            ChannelType = "email",
+            ChannelIdentifier = encryptedEmail,
+            IsValid = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    /// <summary>
     /// Creates the default notification preference for the contact inbox user.
     /// </summary>
     /// <returns>The default contact inbox preference.</returns>
@@ -252,6 +327,23 @@ public static class NotificationBootstrapData
         return new UserNotificationPreference
         {
             UserId = ContactInboxUserId,
+            PrimaryChannelType = "email",
+            FallbackChannelTypes = [],
+            OptOutCategories = [],
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    /// <summary>
+    /// Creates the default notification preference for the operations inbox user.
+    /// </summary>
+    /// <returns>The default operations inbox preference.</returns>
+    public static UserNotificationPreference CreateOperationsInboxPreference()
+    {
+        return new UserNotificationPreference
+        {
+            UserId = OperationsInboxUserId,
             PrimaryChannelType = "email",
             FallbackChannelTypes = [],
             OptOutCategories = [],
