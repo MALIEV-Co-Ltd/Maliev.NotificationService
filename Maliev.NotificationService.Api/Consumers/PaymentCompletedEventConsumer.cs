@@ -10,13 +10,16 @@ namespace Maliev.NotificationService.Api.Consumers
     {
         private readonly ILogger<PaymentCompletedEventConsumer> _logger;
         private readonly NotificationDbContext _dbContext;
+        private readonly IPublishEndpoint _publishEndpoint;
 
         public PaymentCompletedEventConsumer(
             ILogger<PaymentCompletedEventConsumer> logger,
-            NotificationDbContext dbContext)
+            NotificationDbContext dbContext,
+            IPublishEndpoint publishEndpoint)
         {
             _logger = logger;
             _dbContext = dbContext;
+            _publishEndpoint = publishEndpoint;
         }
 
         public async Task Consume(ConsumeContext<PaymentCompletedEvent> context)
@@ -27,15 +30,51 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.OrderId,
                 payload.PaymentId);
 
+            var notificationEvent = new NotificationEvent(
+                MessageId: Guid.NewGuid(),
+                MessageName: "PaymentCompletedNotification",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "NotificationService",
+                ConsumedBy: new[] { "NotificationService" },
+                CorrelationId: context.Message.CorrelationId,
+                CausationId: context.Message.MessageId,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: false,
+                Payload: new NotificationEventPayload(
+                    NotificationType: "PaymentSuccess",
+                    Priority: "Critical",
+                    TargetUsers: new[]
+                    {
+                        new NotificationEventPayloadTargetUsersItem(
+                            payload.CustomerId,
+                            "customer")
+                    },
+                    TemplateId: "order-confirmed",
+                    Parameters: new Dictionary<string, object>
+                    {
+                        ["name"] = "Customer",
+                        ["orderId"] = payload.OrderNumber,
+                        ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                        ["paymentId"] = payload.PaymentId.ToString()
+                    },
+                    Metadata: new NotificationEventPayloadMetadata(
+                        Language: "en",
+                        Source: "PaymentService")
+                )
+            );
+
+            await _publishEndpoint.Publish(notificationEvent, context.CancellationToken);
+
             // Create delivery log entry to track that we received this event
             var deliveryLog = new DeliveryLog
             {
                 EventId = context.Message.MessageId.ToString(),
-                UserId = payload.OrderId.ToString(), // Using OrderId as user identifier for this event
+                UserId = payload.CustomerId,
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = $"payment-{payload.PaymentId}",
                 Status = "received",
-                MessageContent = $"Payment completed: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}",
+                MessageContent = $"Payment completed: Order {payload.OrderNumber}, Amount {payload.Amount} {payload.Currency}",
                 AttemptNumber = 1,
                 DeliveredAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -46,11 +85,9 @@ namespace Maliev.NotificationService.Api.Consumers
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation(
-                "[NotificationService] Created delivery log {DeliveryLogId} for PaymentCompletedEvent {MessageId}",
+                "[NotificationService] Published customer notification and created delivery log {DeliveryLogId} for PaymentCompletedEvent {MessageId}",
                 deliveryLog.Id,
                 context.Message.MessageId);
-
-            // Actual notification logic (e.g., email) would go here.
         }
     }
 }

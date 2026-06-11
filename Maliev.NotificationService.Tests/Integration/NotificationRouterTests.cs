@@ -210,6 +210,14 @@ public class NotificationRouterTests : IClassFixture<TestWebApplicationFactory>,
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var router = scope.ServiceProvider.GetRequiredService<INotificationRouter>();
 
+        if (!await context.NotificationTemplates.AnyAsync(template =>
+            template.TemplateKey == "contact-message-customer-copy" &&
+            template.ChannelType == "email"))
+        {
+            context.NotificationTemplates.Add(NotificationBootstrapData.CreateContactMessageCustomerCopyEmailTemplate());
+            await context.SaveChangesAsync();
+        }
+
         Assert.True(await context.NotificationTemplates.AnyAsync(template =>
             template.TemplateKey == "contact-message-customer-copy" &&
             template.ChannelType == "email"));

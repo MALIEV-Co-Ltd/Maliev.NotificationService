@@ -10,6 +10,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -23,17 +24,21 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
     }
 
     [Fact]
-    public async Task Consume_PaymentCompletedEvent_ShouldCreateDeliveryLog()
+    public async Task Consume_PaymentCompletedEvent_ShouldPublishCustomerNotificationAndCreateDeliveryLog()
     {
         // Arrange
         await _factory.ResetDatabaseAsync();
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
 
-        var consumer = new PaymentCompletedEventConsumer(logger, context);
+        var consumer = new PaymentCompletedEventConsumer(logger, context, publishEndpoint.Object);
 
         var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid().ToString();
+        var orderId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid();
         var evt = new PaymentCompletedEvent(
             MessageId: messageId,
             MessageName: "PaymentCompletedEvent",
@@ -46,9 +51,10 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
             OccurredAtUtc: DateTimeOffset.UtcNow,
             IsPublic: true,
             Payload: new PaymentCompletedEventPayload(
-                OrderId: Guid.NewGuid(),
+                OrderId: orderId,
                 OrderNumber: "ORD-123",
-                PaymentId: Guid.NewGuid(),
+                CustomerId: customerId,
+                PaymentId: paymentId,
                 Amount: 100,
                 Currency: "USD"
             )
@@ -56,6 +62,7 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
 
         var mockContext = new Mock<ConsumeContext<PaymentCompletedEvent>>();
         mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -64,5 +71,39 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
         var logs = await context.DeliveryLogs.Where(l => l.EventId == messageId.ToString()).ToListAsync();
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
+        Assert.Equal(customerId, logs[0].UserId);
+        Assert.Equal($"payment-{paymentId}", logs[0].RecipientIdentifier);
+        Assert.Contains("ORD-123", logs[0].MessageContent);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.CausationId == messageId &&
+                    notificationEvent.CorrelationId == evt.CorrelationId &&
+                    notificationEvent.Payload.NotificationType == "PaymentSuccess" &&
+                    notificationEvent.Payload.Priority == "Critical" &&
+                    notificationEvent.Payload.TemplateId == "order-confirmed" &&
+                    notificationEvent.Payload.TargetUsers.Count == 1 &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId &&
+                    notificationEvent.Payload.TargetUsers[0].UserType == "customer" &&
+                    HasParameter(notificationEvent.Payload.Parameters, "orderId", "ORD-123") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "amount", "100.00 USD") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "paymentId", paymentId.ToString())),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static bool HasParameter(object parameters, string key, string expectedValue)
+    {
+        if (parameters is IReadOnlyDictionary<string, object> dictionary &&
+            dictionary.TryGetValue(key, out var value))
+        {
+            return string.Equals(value?.ToString(), expectedValue, StringComparison.Ordinal);
+        }
+
+        var json = JsonSerializer.Serialize(parameters);
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.TryGetProperty(key, out var property) &&
+            string.Equals(property.ToString(), expectedValue, StringComparison.Ordinal);
     }
 }

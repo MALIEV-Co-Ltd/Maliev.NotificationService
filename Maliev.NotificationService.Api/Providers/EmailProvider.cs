@@ -38,6 +38,7 @@ public partial class EmailProvider : IChannelProvider
         }
         else
         {
+            brevo_csharp.Client.Configuration.Default.ApiKey.Remove("api-key");
             _logger.LogWarning("Brevo API key not configured. Email sending will be simulated.");
             _emailApi = null!;
         }
