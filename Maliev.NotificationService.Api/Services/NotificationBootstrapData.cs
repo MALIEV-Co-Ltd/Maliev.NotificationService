@@ -213,6 +213,62 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to customers when production has completed successfully.
+    /// </summary>
+    /// <returns>The default customer order completed email template.</returns>
+    public static NotificationTemplate CreateCustomerOrderCompletedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "order-completed",
+            DisplayName = "Customer order completed",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV order {{orderId}} is complete",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Production for your MALIEV order {{orderId}} is complete. The order is moving to quality control and shipping preparation.\n\n" +
+                "Completed at: {{completedAt}}\n\n" +
+                "We will send another update when the shipment is released.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "completedAt"
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Creates the email template sent to customers when production completion reports a failure.
+    /// </summary>
+    /// <returns>The default customer order completion failed email template.</returns>
+    public static NotificationTemplate CreateCustomerOrderCompletionFailedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "order-completion-failed",
+            DisplayName = "Customer order completion issue",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Update on MALIEV order {{orderId}}",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "We found a production issue while completing MALIEV order {{orderId}}. Our team is reviewing the order and will follow up with the next useful action.\n\n" +
+                "Updated at: {{completedAt}}\n\n" +
+                "You do not need to take action until our team contacts you.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "completedAt"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>

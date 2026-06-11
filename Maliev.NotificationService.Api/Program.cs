@@ -402,6 +402,8 @@ static async Task SeedDefaultTemplatesAsync(
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerEmailVerifiedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsPaymentReceivedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsJobCompletedQcReadyEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderCompletedEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderCompletionFailedEmailTemplate());
             await SeedContactInboxAsync(dbContext, configuration, encryptionService);
             await SeedOperationsInboxAsync(dbContext, configuration, encryptionService);
 

@@ -158,6 +158,7 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
                 It.Is<NotificationEvent>(notificationEvent =>
                     notificationEvent.Payload.NotificationType == "OrderCompletionFailed" &&
                     notificationEvent.Payload.Priority == "High" &&
+                    notificationEvent.Payload.TemplateId == "order-completion-failed" &&
                     notificationEvent.Payload.TargetUsers[0].UserId == customerId.ToString() &&
                     HasParameter(notificationEvent.Payload.Parameters, "jobSucceeded", "False")),
                 It.IsAny<CancellationToken>()),

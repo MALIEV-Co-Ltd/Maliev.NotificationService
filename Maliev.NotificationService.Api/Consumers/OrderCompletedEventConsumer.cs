@@ -50,7 +50,7 @@ namespace Maliev.NotificationService.Api.Consumers
                             payload.CustomerId.ToString(),
                             "customer")
                     },
-                    TemplateId: "order-completed",
+                    TemplateId: payload.JobSucceeded ? "order-completed" : "order-completion-failed",
                     Parameters: new Dictionary<string, object>
                     {
                         ["name"] = "Customer",

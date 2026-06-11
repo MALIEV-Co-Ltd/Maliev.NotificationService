@@ -122,6 +122,32 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateCustomerOrderCompletedEmailTemplate_DefinesUsefulCompletionTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerOrderCompletedEmailTemplate();
+
+        Assert.Equal("order-completed", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Your MALIEV order {{orderId}} is complete", template.SubjectTemplate);
+        Assert.Contains("quality control and shipping", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("completedAt", template.Parameters);
+    }
+
+    [Fact]
+    public void CreateCustomerOrderCompletionFailedEmailTemplate_DefinesUsefulFailureTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerOrderCompletionFailedEmailTemplate();
+
+        Assert.Equal("order-completion-failed", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Update on MALIEV order {{orderId}}", template.SubjectTemplate);
+        Assert.Contains("production issue", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("completedAt", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
     {
         var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");
