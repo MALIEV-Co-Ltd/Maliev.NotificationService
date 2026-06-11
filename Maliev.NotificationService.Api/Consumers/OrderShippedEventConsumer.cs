@@ -1,4 +1,5 @@
 using Maliev.MessagingContracts.Contracts.Orders;
+using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
@@ -9,13 +10,16 @@ namespace Maliev.NotificationService.Api.Consumers
     {
         private readonly ILogger<OrderShippedEventConsumer> _logger;
         private readonly NotificationDbContext _dbContext;
+        private readonly IPublishEndpoint _publishEndpoint;
 
         public OrderShippedEventConsumer(
             ILogger<OrderShippedEventConsumer> logger,
-            NotificationDbContext dbContext)
+            NotificationDbContext dbContext,
+            IPublishEndpoint publishEndpoint)
         {
             _logger = logger;
             _dbContext = dbContext;
+            _publishEndpoint = publishEndpoint;
         }
 
         public async Task Consume(ConsumeContext<OrderShippedEvent> context)
@@ -26,11 +30,48 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.OrderNumber,
                 payload.TrackingNumber);
 
+            var notificationEvent = new NotificationEvent(
+                MessageId: Guid.NewGuid(),
+                MessageName: "OrderShippedNotification",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "NotificationService",
+                ConsumedBy: new[] { "NotificationService" },
+                CorrelationId: context.Message.CorrelationId,
+                CausationId: context.Message.MessageId,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: false,
+                Payload: new NotificationEventPayload(
+                    NotificationType: "OrderShipped",
+                    Priority: "High",
+                    TargetUsers: new[]
+                    {
+                        new NotificationEventPayloadTargetUsersItem(
+                            payload.CustomerId.ToString(),
+                            "customer")
+                    },
+                    TemplateId: "order-shipped",
+                    Parameters: new Dictionary<string, object>
+                    {
+                        ["name"] = "Customer",
+                        ["orderId"] = payload.OrderNumber,
+                        ["carrier"] = payload.Carrier ?? "Not available",
+                        ["trackingNumber"] = payload.TrackingNumber ?? "Not available",
+                        ["estimatedDeliveryDate"] = payload.EstimatedDeliveryDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? "Not available"
+                    },
+                    Metadata: new NotificationEventPayloadMetadata(
+                        Language: "en",
+                        Source: "OrderService")
+                )
+            );
+
+            await _publishEndpoint.Publish(notificationEvent, context.CancellationToken);
+
             // Create delivery log entry to track that we received this event
             var deliveryLog = new DeliveryLog
             {
                 EventId = context.Message.MessageId.ToString(),
-                UserId = payload.OrderId.ToString(), // OrderId as user identifier (CustomerId not present in payload)
+                UserId = payload.CustomerId.ToString(),
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = $"order-{payload.OrderNumber}",
                 Status = "received",
@@ -45,11 +86,9 @@ namespace Maliev.NotificationService.Api.Consumers
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation(
-                "[NotificationService] Created delivery log {DeliveryLogId} for OrderShippedEvent {MessageId}",
+                "[NotificationService] Published customer notification and created delivery log {DeliveryLogId} for OrderShippedEvent {MessageId}",
                 deliveryLog.Id,
                 context.Message.MessageId);
-
-            // Actual notification logic (e.g., email/SMS with tracking info) would go here.
         }
     }
 }

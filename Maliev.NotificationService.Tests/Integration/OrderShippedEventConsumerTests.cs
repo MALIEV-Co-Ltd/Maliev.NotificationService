@@ -10,6 +10,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -30,10 +31,12 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderShippedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
 
-        var consumer = new OrderShippedEventConsumer(logger, context);
+        var consumer = new OrderShippedEventConsumer(logger, context, publishEndpoint.Object);
 
         var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
         var evt = new OrderShippedEvent(
             MessageId: messageId,
             MessageName: "OrderShippedEvent",
@@ -48,6 +51,7 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
             Payload: new OrderShippedEventPayload(
                 OrderId: Guid.NewGuid(),
                 OrderNumber: "ORD-SHIP-001",
+                CustomerId: customerId,
                 ShippedAt: DateTimeOffset.UtcNow,
                 TrackingNumber: "TH123456789",
                 Carrier: "Thailand Post",
@@ -57,6 +61,7 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
 
         var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
         mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -66,7 +71,25 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal("rabbitmq-event", logs[0].ChannelType);
+        Assert.Equal(customerId.ToString(), logs[0].UserId);
         Assert.Contains("ORD-SHIP-001", logs[0].RecipientIdentifier);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.CausationId == messageId &&
+                    notificationEvent.CorrelationId == evt.CorrelationId &&
+                    notificationEvent.Payload.NotificationType == "OrderShipped" &&
+                    notificationEvent.Payload.Priority == "High" &&
+                    notificationEvent.Payload.TemplateId == "order-shipped" &&
+                    notificationEvent.Payload.TargetUsers.Count == 1 &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId.ToString() &&
+                    notificationEvent.Payload.TargetUsers[0].UserType == "customer" &&
+                    HasParameter(notificationEvent.Payload.Parameters, "orderId", "ORD-SHIP-001") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "carrier", "Thailand Post") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "trackingNumber", "TH123456789")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -77,10 +100,12 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderShippedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
 
-        var consumer = new OrderShippedEventConsumer(logger, context);
+        var consumer = new OrderShippedEventConsumer(logger, context, publishEndpoint.Object);
 
         var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
         var evt = new OrderShippedEvent(
             MessageId: messageId,
             MessageName: "OrderShippedEvent",
@@ -95,6 +120,7 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
             Payload: new OrderShippedEventPayload(
                 OrderId: Guid.NewGuid(),
                 OrderNumber: "ORD-SHIP-002",
+                CustomerId: customerId,
                 ShippedAt: DateTimeOffset.UtcNow,
                 TrackingNumber: null,
                 Carrier: null,
@@ -104,6 +130,7 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
 
         var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
         mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -112,5 +139,28 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         var logs = await context.DeliveryLogs.Where(l => l.EventId == messageId.ToString()).ToListAsync();
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.Payload.NotificationType == "OrderShipped" &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId.ToString() &&
+                    HasParameter(notificationEvent.Payload.Parameters, "trackingNumber", "Not available")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static bool HasParameter(object parameters, string key, string expectedValue)
+    {
+        if (parameters is IReadOnlyDictionary<string, object> dictionary &&
+            dictionary.TryGetValue(key, out var value))
+        {
+            return string.Equals(value?.ToString(), expectedValue, StringComparison.Ordinal);
+        }
+
+        var json = JsonSerializer.Serialize(parameters);
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.TryGetProperty(key, out var property) &&
+            string.Equals(property.ToString(), expectedValue, StringComparison.Ordinal);
     }
 }

@@ -10,6 +10,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
 
@@ -30,10 +31,12 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
 
-        var consumer = new OrderCompletedEventConsumer(logger, context);
+        var consumer = new OrderCompletedEventConsumer(logger, context, publishEndpoint.Object);
 
         var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
         var evt = new OrderCompletedEvent(
             MessageId: messageId,
             MessageName: "OrderCompletedEvent",
@@ -48,6 +51,7 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
             Payload: new OrderCompletedEventPayload(
                 OrderId: Guid.NewGuid(),
                 OrderNumber: "ORD-COMP-001",
+                CustomerId: customerId,
                 QuotationId: Guid.NewGuid(),
                 OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-7),
                 CompletedAt: DateTimeOffset.UtcNow,
@@ -63,6 +67,7 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
 
         var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
         mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -72,8 +77,25 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal("rabbitmq-event", logs[0].ChannelType);
+        Assert.Equal(customerId.ToString(), logs[0].UserId);
         Assert.Contains("ORD-COMP-001", logs[0].RecipientIdentifier);
         Assert.Contains("True", logs[0].MessageContent);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.CausationId == messageId &&
+                    notificationEvent.CorrelationId == evt.CorrelationId &&
+                    notificationEvent.Payload.NotificationType == "OrderCompleted" &&
+                    notificationEvent.Payload.Priority == "Normal" &&
+                    notificationEvent.Payload.TemplateId == "order-completed" &&
+                    notificationEvent.Payload.TargetUsers.Count == 1 &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId.ToString() &&
+                    notificationEvent.Payload.TargetUsers[0].UserType == "customer" &&
+                    HasParameter(notificationEvent.Payload.Parameters, "orderId", "ORD-COMP-001") &&
+                    HasParameter(notificationEvent.Payload.Parameters, "jobSucceeded", "True")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -84,10 +106,12 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
 
-        var consumer = new OrderCompletedEventConsumer(logger, context);
+        var consumer = new OrderCompletedEventConsumer(logger, context, publishEndpoint.Object);
 
         var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
         var evt = new OrderCompletedEvent(
             MessageId: messageId,
             MessageName: "OrderCompletedEvent",
@@ -102,6 +126,7 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
             Payload: new OrderCompletedEventPayload(
                 OrderId: Guid.NewGuid(),
                 OrderNumber: "ORD-COMP-002",
+                CustomerId: customerId,
                 QuotationId: Guid.NewGuid(),
                 OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-14),
                 CompletedAt: DateTimeOffset.UtcNow,
@@ -117,6 +142,7 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
 
         var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
         mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -126,5 +152,29 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Contains("False", logs[0].MessageContent);
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.Payload.NotificationType == "OrderCompletionFailed" &&
+                    notificationEvent.Payload.Priority == "High" &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId.ToString() &&
+                    HasParameter(notificationEvent.Payload.Parameters, "jobSucceeded", "False")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static bool HasParameter(object parameters, string key, string expectedValue)
+    {
+        if (parameters is IReadOnlyDictionary<string, object> dictionary &&
+            dictionary.TryGetValue(key, out var value))
+        {
+            return string.Equals(value?.ToString(), expectedValue, StringComparison.Ordinal);
+        }
+
+        var json = JsonSerializer.Serialize(parameters);
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.TryGetProperty(key, out var property) &&
+            string.Equals(property.ToString(), expectedValue, StringComparison.Ordinal);
     }
 }
