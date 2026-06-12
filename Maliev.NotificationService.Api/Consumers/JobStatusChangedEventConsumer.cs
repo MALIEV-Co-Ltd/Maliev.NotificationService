@@ -55,6 +55,9 @@ namespace Maliev.NotificationService.Api.Consumers
             var assignedMachineId = string.IsNullOrWhiteSpace(payload.AssignedMachineId)
                 ? "Unassigned"
                 : payload.AssignedMachineId;
+            var orderReference = string.IsNullOrWhiteSpace(payload.OrderNumber)
+                ? payload.OrderId.ToString()
+                : payload.OrderNumber;
 
             var notificationEvent = new NotificationEvent(
                 MessageId: Guid.NewGuid(),
@@ -80,7 +83,7 @@ namespace Maliev.NotificationService.Api.Consumers
                     Parameters: new Dictionary<string, object>
                     {
                         ["jobId"] = payload.JobId.ToString(),
-                        ["orderId"] = payload.OrderId.ToString(),
+                        ["orderId"] = orderReference,
                         ["technology"] = payload.Technology,
                         ["assignedMachineId"] = assignedMachineId,
                         ["completedAt"] = payload.ChangedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
@@ -101,7 +104,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = $"job-{payload.JobId}",
                 Status = "received",
-                MessageContent = $"Job completed and ready for QC intake: Job {payload.JobId}, Order {payload.OrderId}, Machine {assignedMachineId}",
+                MessageContent = $"Job completed and ready for QC intake: Job {payload.JobId}, Order {orderReference}, Machine {assignedMachineId}",
                 AttemptNumber = 1,
                 DeliveredAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow,

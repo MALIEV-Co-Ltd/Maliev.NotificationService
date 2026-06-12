@@ -32,7 +32,7 @@ public class NotificationDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => new { e.EventId, e.UserId })
                 .IsUnique()
-                .HasFilter("\"status\" = 'delivered'");
+                .HasFilter("\"status\" = 'received'");
 
             entity.Property<uint>("xmin")
                 .HasColumnType("xid")

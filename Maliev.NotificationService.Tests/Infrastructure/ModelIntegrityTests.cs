@@ -36,4 +36,25 @@ public class ModelIntegrityTests
         Assert.Contains("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", entityNames);
         Assert.Contains("MassTransit.EntityFrameworkCoreIntegration.OutboxState", entityNames);
     }
+
+    [Fact]
+    public void Model_ShouldDeduplicateReceivedEventLogsPerUser()
+    {
+        var options = new DbContextOptionsBuilder<NotificationDbContext>()
+            .UseNpgsql("Host=localhost;Database=ModelCheck")
+            .Options;
+
+        using var context = new NotificationDbContext(options);
+        var deliveryLogType = context.Model.FindEntityType(typeof(DeliveryLog));
+
+        Assert.NotNull(deliveryLogType);
+
+        var eventUserIndex = deliveryLogType.GetIndexes()
+            .Single(index =>
+                index.Properties.Select(property => property.Name)
+                    .SequenceEqual(new[] { nameof(DeliveryLog.EventId), nameof(DeliveryLog.UserId) }));
+
+        Assert.True(eventUserIndex.IsUnique);
+        Assert.Equal("\"status\" = 'received'", eventUserIndex.GetFilter());
+    }
 }

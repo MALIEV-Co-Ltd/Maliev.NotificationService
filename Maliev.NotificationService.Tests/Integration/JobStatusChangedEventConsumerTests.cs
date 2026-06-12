@@ -36,6 +36,7 @@ public class JobStatusChangedEventConsumerTests : IClassFixture<BaseIntegrationT
         var messageId = Guid.NewGuid();
         var jobId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
+        var orderNumber = "ORD-2026-00042";
         var evt = new JobStatusChangedEvent(
             MessageId: messageId,
             MessageName: nameof(JobStatusChangedEvent),
@@ -50,6 +51,7 @@ public class JobStatusChangedEventConsumerTests : IClassFixture<BaseIntegrationT
             Payload: new JobStatusChangedEventPayload(
                 JobId: jobId,
                 OrderId: orderId,
+                OrderNumber: orderNumber,
                 PreviousStatus: "Finishing",
                 NewStatus: "Completed",
                 Technology: "FDM",
@@ -68,6 +70,7 @@ public class JobStatusChangedEventConsumerTests : IClassFixture<BaseIntegrationT
         Assert.Equal(NotificationBootstrapData.OperationsInboxUserId, logs[0].UserId);
         Assert.Equal($"job-{jobId}", logs[0].RecipientIdentifier);
         Assert.Contains("QC intake", logs[0].MessageContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(orderNumber, logs[0].MessageContent, StringComparison.Ordinal);
 
         publishEndpoint.Verify(
             p => p.Publish(
@@ -81,7 +84,7 @@ public class JobStatusChangedEventConsumerTests : IClassFixture<BaseIntegrationT
                     notificationEvent.Payload.TargetUsers[0].UserId == NotificationBootstrapData.OperationsInboxUserId &&
                     notificationEvent.Payload.TargetUsers[0].UserType == "staff" &&
                     HasParameter(notificationEvent.Payload.Parameters, "jobId", jobId.ToString()) &&
-                    HasParameter(notificationEvent.Payload.Parameters, "orderId", orderId.ToString()) &&
+                    HasParameter(notificationEvent.Payload.Parameters, "orderId", orderNumber) &&
                     HasParameter(notificationEvent.Payload.Parameters, "technology", "FDM") &&
                     HasParameter(notificationEvent.Payload.Parameters, "assignedMachineId", "FDM-001") &&
                     HasParameter(notificationEvent.Payload.Parameters, "changedBy", "scanner-operator")),
