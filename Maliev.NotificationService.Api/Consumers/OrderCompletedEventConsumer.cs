@@ -3,6 +3,7 @@ using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Api.Consumers
 {
@@ -29,6 +30,23 @@ namespace Maliev.NotificationService.Api.Consumers
                 "[NotificationService] Received OrderCompletedEvent for Order {OrderNumber}, JobSucceeded: {JobSucceeded}",
                 payload.OrderNumber,
                 payload.JobSucceeded);
+
+            var eventId = context.Message.MessageId.ToString();
+            var customerId = payload.CustomerId.ToString();
+            var alreadyReceived = await _dbContext.DeliveryLogs
+                .AsNoTracking()
+                .AnyAsync(
+                    log => log.EventId == eventId && log.UserId == customerId,
+                    context.CancellationToken);
+
+            if (alreadyReceived)
+            {
+                _logger.LogInformation(
+                    "[NotificationService] Skipping duplicate OrderCompletedEvent {MessageId} for customer {CustomerId}",
+                    context.Message.MessageId,
+                    payload.CustomerId);
+                return;
+            }
 
             var notificationEvent = new NotificationEvent(
                 MessageId: Guid.NewGuid(),
@@ -69,8 +87,8 @@ namespace Maliev.NotificationService.Api.Consumers
             // Create delivery log entry to track that we received this event
             var deliveryLog = new DeliveryLog
             {
-                EventId = context.Message.MessageId.ToString(),
-                UserId = payload.CustomerId.ToString(),
+                EventId = eventId,
+                UserId = customerId,
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = $"order-{payload.OrderNumber}",
                 Status = "received",

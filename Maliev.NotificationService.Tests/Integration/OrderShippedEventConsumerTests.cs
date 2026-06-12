@@ -24,6 +24,72 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
     }
 
     [Fact]
+    public async Task Consume_OrderShippedEvent_WhenAlreadyReceived_ShouldNotPublishDuplicateNotification()
+    {
+        // Arrange
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderShippedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+
+        var consumer = new OrderShippedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        context.DeliveryLogs.Add(new Domain.Entities.DeliveryLog
+        {
+            EventId = messageId.ToString(),
+            UserId = customerId.ToString(),
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = "order-ORD-SHIP-DUP",
+            Status = "received",
+            MessageContent = "Order shipped: ORD-SHIP-DUP",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var evt = new OrderShippedEvent(
+            MessageId: messageId,
+            MessageName: "OrderShippedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Order",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new OrderShippedEventPayload(
+                OrderId: Guid.NewGuid(),
+                OrderNumber: "ORD-SHIP-DUP",
+                CustomerId: customerId,
+                ShippedAt: DateTimeOffset.UtcNow,
+                TrackingNumber: "TH123456789",
+                Carrier: "Thailand Post",
+                EstimatedDeliveryDate: DateTimeOffset.UtcNow.AddDays(3)
+            )
+        );
+
+        var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        // Act
+        await consumer.Consume(mockContext.Object);
+
+        // Assert
+        var logs = await context.DeliveryLogs.Where(l => l.EventId == messageId.ToString()).ToListAsync();
+        Assert.Single(logs);
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_OrderShippedEvent_ShouldCreateDeliveryLog()
     {
         // Arrange
