@@ -156,6 +156,7 @@ try
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerRegisteredEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.VerificationEmailRequestedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.EmailVerifiedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PdfGenerationFailedEventConsumer>();
 
             // Add RabbitMQ message scheduler for delayed message delivery
             x.AddDelayedMessageScheduler();
@@ -206,6 +207,12 @@ try
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.JobStatusChangedEventConsumer>(context);
+            });
+
+            // Receive endpoint for document generation failures
+            cfg.ReceiveEndpoint("notification-pdf-failures", e =>
+            {
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PdfGenerationFailedEventConsumer>(context);
             });
 
             // Critical notification queue — reserved for topic-routed critical priority events
