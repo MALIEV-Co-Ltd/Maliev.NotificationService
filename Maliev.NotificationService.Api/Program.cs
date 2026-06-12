@@ -139,6 +139,9 @@ try
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentFailedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCancelledEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentExpiredEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentPendingEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerCreatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerUpdatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>();
@@ -161,6 +164,9 @@ try
             {
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentFailedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentCancelledEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentExpiredEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.PaymentPendingEventConsumer>(context);
             });
 
             // Receive endpoint for Customer events
@@ -334,6 +340,9 @@ static async Task SeedDefaultTemplatesAsync(
                 ContentTemplate = "สวัสดีค่ะ คุณ{{name}}\n\nการชำระเงินจำนวน {{amount}} ของคุณล้มเหลว\n\nเหตุผล: {{reason}}\n\nกรุณาอัพเดทวิธีการชำระเงินและลองใหม่อีกครั้ง",
                 Parameters = new[] { "name", "amount", "reason" }
             });
+
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerPaymentCancelledEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerPaymentExpiredEmailTemplate());
 
             // system-outage template (English, Email)
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate

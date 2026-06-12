@@ -208,6 +208,68 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent when a customer checkout payment is cancelled.
+    /// </summary>
+    /// <returns>The default customer payment cancelled email template.</returns>
+    public static NotificationTemplate CreateCustomerPaymentCancelledEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "payment-cancelled",
+            DisplayName = "Customer payment cancelled",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV payment was cancelled",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Your MALIEV payment for {{amount}} was cancelled before completion.\n\n" +
+                "Reason: {{reason}}\n" +
+                "Transaction: {{transactionId}}\n\n" +
+                "No payment has been captured. You can return to checkout when you are ready to complete the order.",
+            Parameters =
+            [
+                "name",
+                "amount",
+                "reason",
+                "transactionId",
+                "providerEventCode"
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Creates the email template sent when a customer checkout payment expires.
+    /// </summary>
+    /// <returns>The default customer payment expired email template.</returns>
+    public static NotificationTemplate CreateCustomerPaymentExpiredEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "payment-expired",
+            DisplayName = "Customer payment expired",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV checkout session expired",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Your MALIEV checkout session for {{amount}} expired before payment was completed.\n\n" +
+                "Reason: {{reason}}\n" +
+                "Transaction: {{transactionId}}\n\n" +
+                "No payment has been captured. Please return to checkout to create a new payment session.",
+            Parameters =
+            [
+                "name",
+                "amount",
+                "reason",
+                "transactionId",
+                "providerEventCode"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template sent to operations when a production job is ready for QC intake.
     /// </summary>
     /// <returns>The default operations job completed QC-ready email template.</returns>
