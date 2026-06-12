@@ -1,5 +1,6 @@
 using Maliev.Aspire.ServiceDefaults.Database;
 using Maliev.NotificationService.Domain.Entities;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Infrastructure.Persistence;
@@ -115,6 +116,10 @@ public class NotificationDbContext : DbContext
                 .ValueGeneratedOnAddOrUpdate()
                 .IsConcurrencyToken();
         });
+
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
 
         SnakeCaseNamingHelper.ApplySnakeCaseNaming(modelBuilder);
     }

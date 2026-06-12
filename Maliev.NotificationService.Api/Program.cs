@@ -136,6 +136,12 @@ try
     builder.AddMassTransitWithRabbitMq(
         configure: x =>
         {
+            x.AddEntityFrameworkOutbox<NotificationDbContext>(options =>
+            {
+                _ = options.UsePostgres();
+                options.UseBusOutbox();
+            });
+
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.NotificationEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.PaymentFailedEventConsumer>();
