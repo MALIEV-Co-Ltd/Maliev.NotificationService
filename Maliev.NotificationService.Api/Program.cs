@@ -294,17 +294,7 @@ static async Task SeedDefaultTemplatesAsync(
         try
         {
             // order-confirmed template (English, Email)
-            await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate
-            {
-                TemplateKey = "order-confirmed",
-                DisplayName = "Order confirmed",
-                Version = 1,
-                Language = "en",
-                ChannelType = "email",
-                SubjectTemplate = "Order #{{orderId}} confirmed",
-                ContentTemplate = "Hello {{name}},\n\nYour order #{{orderId}} has been confirmed!\n\nOrder total: {{amount}}\n\nThank you for your business.",
-                Parameters = new[] { "name", "orderId", "amount" }
-            });
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderConfirmedEmailTemplate());
 
             // order-confirmed template (Thai, Email)
             await SeedTemplateIfNotExistsAsync(dbContext, new Maliev.NotificationService.Domain.Entities.NotificationTemplate

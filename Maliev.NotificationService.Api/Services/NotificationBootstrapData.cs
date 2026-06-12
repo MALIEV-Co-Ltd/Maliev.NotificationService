@@ -178,6 +178,36 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to customers after a successful payment confirms the order.
+    /// </summary>
+    /// <returns>The default customer paid order confirmation email template.</returns>
+    public static NotificationTemplate CreateCustomerOrderConfirmedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "order-confirmed",
+            DisplayName = "Customer paid order confirmation",
+            Version = 2,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV order {{orderId}} is confirmed",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Your payment receipt for MALIEV order {{orderId}} is confirmed.\n\n" +
+                "Amount paid: {{amount}}\n" +
+                "Payment ID: {{paymentId}}\n\n" +
+                "Your order is now ready for production queue review. We will send useful updates when production starts, when QC releases the parts, and when the shipment is prepared.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "amount",
+                "paymentId"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template sent to operations when a production job is ready for QC intake.
     /// </summary>
     /// <returns>The default operations job completed QC-ready email template.</returns>

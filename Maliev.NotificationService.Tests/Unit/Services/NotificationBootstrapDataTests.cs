@@ -105,6 +105,22 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateCustomerOrderConfirmedEmailTemplate_DefinesPaidOrderReceiptTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerOrderConfirmedEmailTemplate();
+
+        Assert.Equal("order-confirmed", template.TemplateKey);
+        Assert.Equal(2, template.Version);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Your MALIEV order {{orderId}} is confirmed", template.SubjectTemplate);
+        Assert.Contains("payment receipt", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("production queue", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("amount", template.Parameters);
+        Assert.Contains("paymentId", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsJobCompletedQcReadyEmailTemplate_DefinesQcIntakeTemplate()
     {
         var template = NotificationBootstrapData.CreateOperationsJobCompletedQcReadyEmailTemplate();
