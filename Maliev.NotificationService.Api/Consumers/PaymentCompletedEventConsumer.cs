@@ -33,10 +33,13 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.PaymentId);
 
             var eventId = context.Message.MessageId.ToString();
+            var paymentRecipientIdentifier = $"payment-{payload.PaymentId}";
             var alreadyReceived = await _dbContext.DeliveryLogs
                 .AsNoTracking()
                 .AnyAsync(
-                    log => log.EventId == eventId && log.UserId == payload.CustomerId,
+                    log => log.UserId == payload.CustomerId
+                        && log.Status == "received"
+                        && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
                     context.CancellationToken);
 
             if (alreadyReceived)
@@ -126,7 +129,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 EventId = eventId,
                 UserId = payload.CustomerId,
                 ChannelType = "rabbitmq-event",
-                RecipientIdentifier = $"payment-{payload.PaymentId}",
+                RecipientIdentifier = paymentRecipientIdentifier,
                 Status = "received",
                 MessageContent = $"Payment completed: Order {payload.OrderNumber}, Amount {payload.Amount} {payload.Currency}",
                 AttemptNumber = 1,
