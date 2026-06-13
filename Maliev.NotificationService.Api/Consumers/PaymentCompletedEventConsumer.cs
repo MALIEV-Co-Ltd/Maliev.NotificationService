@@ -27,6 +27,12 @@ namespace Maliev.NotificationService.Api.Consumers
         public async Task Consume(ConsumeContext<PaymentCompletedEvent> context)
         {
             var payload = context.Message.Payload;
+            if (payload is null)
+            {
+                _logger.LogWarning("[NotificationService] PaymentCompletedEvent received without payload; skipping");
+                return;
+            }
+
             _logger.LogInformation(
                 "[NotificationService] Received PaymentCompletedEvent for Order ID: {OrderId}, Payment ID: {PaymentId}. Preparing to send notification.",
                 payload.OrderId,
