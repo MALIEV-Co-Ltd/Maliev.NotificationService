@@ -95,6 +95,73 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_PaymentFailedEvent_WhenTransactionAlreadyReceived_ShouldNotPublishDuplicateNotification()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentFailedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+
+        var consumer = new PaymentFailedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var customerId = Guid.NewGuid().ToString();
+        var transactionId = Guid.NewGuid();
+        context.DeliveryLogs.Add(new Domain.Entities.DeliveryLog
+        {
+            EventId = Guid.NewGuid().ToString(),
+            UserId = customerId,
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = $"payment-{transactionId}",
+            Status = "received",
+            MessageContent = "Payment failed: Order ORD-FAILED, Amount 250.5 THB, Reason: Card declined",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentFailedEvent(
+            MessageId: messageId,
+            MessageName: "PaymentFailedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentFailedEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-123",
+                Amount: 250.5,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-FAILED",
+                ProviderName: "stripe",
+                ErrorMessage: "Card declined",
+                ProviderErrorCode: "card_declined",
+                FailedAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentFailedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        var logs = await context.DeliveryLogs
+            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .ToListAsync();
+        Assert.Single(logs);
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&

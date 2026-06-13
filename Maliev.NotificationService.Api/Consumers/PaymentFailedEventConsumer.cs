@@ -3,6 +3,7 @@ using Maliev.MessagingContracts.Contracts.Shared;
 using Maliev.NotificationService.Domain.Entities;
 using Maliev.NotificationService.Infrastructure.Persistence;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.NotificationService.Api.Consumers
 {
@@ -35,6 +36,25 @@ namespace Maliev.NotificationService.Api.Consumers
                 "[NotificationService] Received PaymentFailedEvent for Order ID: {OrderId}, Transaction ID: {TransactionId}. Preparing failure notification.",
                 payload.OrderId,
                 payload.TransactionId);
+
+            var eventId = context.Message.MessageId.ToString();
+            var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+            var alreadyReceived = await _dbContext.DeliveryLogs
+                .AsNoTracking()
+                .AnyAsync(
+                    log => log.UserId == payload.CustomerId
+                        && log.Status == "received"
+                        && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
+                    context.CancellationToken);
+
+            if (alreadyReceived)
+            {
+                _logger.LogInformation(
+                    "[NotificationService] Skipping duplicate PaymentFailedEvent {MessageId} for customer {CustomerId}",
+                    context.Message.MessageId,
+                    payload.CustomerId);
+                return;
+            }
 
             var notificationEvent = new NotificationEvent(
                 MessageId: Guid.NewGuid(),
@@ -75,10 +95,10 @@ namespace Maliev.NotificationService.Api.Consumers
 
             var deliveryLog = new DeliveryLog
             {
-                EventId = context.Message.MessageId.ToString(),
+                EventId = eventId,
                 UserId = payload.CustomerId,
                 ChannelType = "rabbitmq-event",
-                RecipientIdentifier = $"payment-{payload.TransactionId}",
+                RecipientIdentifier = paymentRecipientIdentifier,
                 Status = "received",
                 MessageContent = $"Payment failed: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}, Reason: {payload.ErrorMessage}",
                 AttemptNumber = 1,
@@ -88,7 +108,7 @@ namespace Maliev.NotificationService.Api.Consumers
             };
 
             _dbContext.DeliveryLogs.Add(deliveryLog);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(context.CancellationToken);
 
             _logger.LogInformation(
                 "[NotificationService] Published customer failure notification and created delivery log {DeliveryLogId} for PaymentFailedEvent {MessageId}",

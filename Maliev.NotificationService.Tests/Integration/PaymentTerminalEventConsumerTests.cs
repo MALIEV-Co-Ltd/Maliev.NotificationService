@@ -92,6 +92,72 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
     }
 
     [Fact]
+    public async Task Consume_PaymentCancelledEvent_WhenTransactionAlreadyReceived_ShouldNotPublishDuplicateNotification()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCancelledEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentCancelledEventConsumer(logger, context, publishEndpoint.Object);
+
+        var customerId = Guid.NewGuid().ToString();
+        var transactionId = Guid.NewGuid();
+        context.DeliveryLogs.Add(new DeliveryLog
+        {
+            EventId = Guid.NewGuid().ToString(),
+            UserId = customerId,
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = $"payment-{transactionId}",
+            Status = "received",
+            MessageContent = "Payment cancelled: Order ORD-CANCELLED, Amount 1200 THB, Reason: Customer cancelled checkout",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentCancelledEvent(
+            MessageId: messageId,
+            MessageName: "PaymentCancelledEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentCancelledEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-cancelled",
+                Amount: 1200,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-CANCELLED",
+                ProviderName: "omise",
+                Reason: "Customer cancelled checkout",
+                ProviderEventCode: "charge.cancelled",
+                CancelledAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentCancelledEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        var logs = await context.DeliveryLogs
+            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .ToListAsync();
+        Assert.Single(logs);
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_PaymentExpiredEvent_ShouldPublishCustomerNotificationAndCreateDeliveryLog()
     {
         await _factory.ResetDatabaseAsync();
@@ -157,6 +223,72 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
                     HasParameter(notificationEvent.Payload.Parameters, "providerEventCode", "checkout.session.expired")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentExpiredEvent_WhenTransactionAlreadyReceived_ShouldNotPublishDuplicateNotification()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentExpiredEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentExpiredEventConsumer(logger, context, publishEndpoint.Object);
+
+        var customerId = Guid.NewGuid().ToString();
+        var transactionId = Guid.NewGuid();
+        context.DeliveryLogs.Add(new DeliveryLog
+        {
+            EventId = Guid.NewGuid().ToString(),
+            UserId = customerId,
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = $"payment-{transactionId}",
+            Status = "received",
+            MessageContent = "Payment expired: Order ORD-EXPIRED, Amount 990 THB, Reason: Checkout session expired",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentExpiredEvent(
+            MessageId: messageId,
+            MessageName: "PaymentExpiredEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentExpiredEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-expired",
+                Amount: 990,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-EXPIRED",
+                ProviderName: "stripe",
+                Reason: "Checkout session expired",
+                ProviderEventCode: "checkout.session.expired",
+                ExpiredAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentExpiredEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        var logs = await context.DeliveryLogs
+            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .ToListAsync();
+        Assert.Single(logs);
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -44,7 +44,13 @@ public sealed class PaymentCancelledEventConsumer : IConsumer<PaymentCancelledEv
 
         var eventId = context.Message.MessageId.ToString();
 
-        if (await HasReceivedEventAsync(eventId, payload.CustomerId, context.CancellationToken))
+        var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+
+        if (await HasReceivedEventAsync(
+            eventId,
+            payload.CustomerId,
+            paymentRecipientIdentifier,
+            context.CancellationToken))
         {
             _logger.LogInformation(
                 "[NotificationService] Skipping duplicate PaymentCancelledEvent {MessageId} for customer {CustomerId}",
@@ -88,7 +94,7 @@ public sealed class PaymentCancelledEventConsumer : IConsumer<PaymentCancelledEv
             EventId = eventId,
             UserId = payload.CustomerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{payload.TransactionId}",
+            RecipientIdentifier = paymentRecipientIdentifier,
             Status = "received",
             MessageContent = $"Payment cancelled: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}, Reason: {payload.Reason}",
             AttemptNumber = 1,
@@ -100,10 +106,18 @@ public sealed class PaymentCancelledEventConsumer : IConsumer<PaymentCancelledEv
         await _dbContext.SaveChangesAsync(context.CancellationToken);
     }
 
-    private Task<bool> HasReceivedEventAsync(string eventId, string customerId, CancellationToken cancellationToken)
+    private Task<bool> HasReceivedEventAsync(
+        string eventId,
+        string customerId,
+        string paymentRecipientIdentifier,
+        CancellationToken cancellationToken)
     {
         return _dbContext.DeliveryLogs
             .AsNoTracking()
-            .AnyAsync(log => log.EventId == eventId && log.UserId == customerId, cancellationToken);
+            .AnyAsync(
+                log => log.UserId == customerId
+                    && log.Status == "received"
+                    && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
+                cancellationToken);
     }
 }
