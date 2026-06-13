@@ -153,6 +153,7 @@ try
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.DeliveryCompletedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.DeliveryStatusChangedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.JobStatusChangedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerRegisteredEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.VerificationEmailRequestedEventConsumer>();
@@ -208,6 +209,7 @@ try
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderShippedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.DeliveryCompletedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.DeliveryStatusChangedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.JobStatusChangedEventConsumer>(context);
             });
 
@@ -420,6 +422,7 @@ static async Task SeedDefaultTemplatesAsync(
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderCompletionFailedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderShippedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerDeliveryCompletedEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerDeliveryStatusChangedEmailTemplate());
             await SeedContactInboxAsync(dbContext, configuration, encryptionService);
             await SeedOperationsInboxAsync(dbContext, configuration, encryptionService);
 

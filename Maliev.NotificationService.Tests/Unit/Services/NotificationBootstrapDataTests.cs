@@ -194,6 +194,22 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateCustomerDeliveryStatusChangedEmailTemplate_DefinesDeliveryStatusTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerDeliveryStatusChangedEmailTemplate();
+
+        Assert.Equal("delivery-status-changed", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("MALIEV delivery {{deliveryNoteId}} status update", template.SubjectTemplate);
+        Assert.Contains("changed from", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("deliveryNoteId", template.Parameters);
+        Assert.Contains("previousStatus", template.Parameters);
+        Assert.Contains("newStatus", template.Parameters);
+        Assert.Contains("changedAt", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
     {
         var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");

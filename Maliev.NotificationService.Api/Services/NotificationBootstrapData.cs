@@ -425,6 +425,38 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to customers when a delivery status changes.
+    /// </summary>
+    /// <returns>The default customer delivery status changed email template.</returns>
+    public static NotificationTemplate CreateCustomerDeliveryStatusChangedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "delivery-status-changed",
+            DisplayName = "Customer delivery status changed",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "MALIEV delivery {{deliveryNoteId}} status update",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "The delivery status for MALIEV order {{orderId}} changed from {{previousStatus}} to {{newStatus}}.\n\n" +
+                "Delivery note: {{deliveryNoteId}}\n" +
+                "Changed at: {{changedAt}}\n\n" +
+                "We will send another update when delivery is complete.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "deliveryNoteId",
+                "previousStatus",
+                "newStatus",
+                "changedAt"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>
