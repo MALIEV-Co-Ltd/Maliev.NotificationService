@@ -208,6 +208,41 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to operations when a production job ticket is created.
+    /// </summary>
+    /// <returns>The default operations job-created email template.</returns>
+    public static NotificationTemplate CreateOperationsJobCreatedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "operations-job-created",
+            DisplayName = "Operations production job created",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Production job {{jobNumber}} is ready for scheduling",
+            ContentTemplate =
+                "A production job ticket has been created from a paid order and is ready for scheduling.\n\n" +
+                "Job: {{jobNumber}}\n" +
+                "Job ID: {{jobId}}\n" +
+                "Order: {{orderId}}\n" +
+                "Order item: {{orderItemId}}\n" +
+                "Technology: {{technology}}\n" +
+                "Created at: {{createdAt}}\n\n" +
+                "Open Maliev.Intranet to review the job ticket, confirm material locks, assign equipment, and adjust the production plan.",
+            Parameters =
+            [
+                "jobId",
+                "jobNumber",
+                "orderId",
+                "orderItemId",
+                "technology",
+                "createdAt"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template sent when a customer checkout payment is cancelled.
     /// </summary>
     /// <returns>The default customer payment cancelled email template.</returns>

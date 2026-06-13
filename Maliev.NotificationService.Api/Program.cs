@@ -154,6 +154,7 @@ try
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.DeliveryCompletedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.DeliveryStatusChangedEventConsumer>();
+            x.AddConsumer<Maliev.NotificationService.Api.Consumers.JobCreatedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.JobStatusChangedEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.CustomerRegisteredEventConsumer>();
             x.AddConsumer<Maliev.NotificationService.Api.Consumers.VerificationEmailRequestedEventConsumer>();
@@ -210,6 +211,7 @@ try
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.OrderCompletedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.DeliveryCompletedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.DeliveryStatusChangedEventConsumer>(context);
+                e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.JobCreatedEventConsumer>(context);
                 e.ConfigureConsumer<Maliev.NotificationService.Api.Consumers.JobStatusChangedEventConsumer>(context);
             });
 
@@ -417,6 +419,7 @@ static async Task SeedDefaultTemplatesAsync(
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerWelcomeEmailEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerEmailVerifiedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsPaymentReceivedEmailTemplate());
+            await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsJobCreatedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateOperationsJobCompletedQcReadyEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderCompletedEmailTemplate());
             await SeedTemplateIfNotExistsAsync(dbContext, NotificationBootstrapData.CreateCustomerOrderCompletionFailedEmailTemplate());

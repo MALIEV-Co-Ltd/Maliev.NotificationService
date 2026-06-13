@@ -138,6 +138,23 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateOperationsJobCreatedEmailTemplate_DefinesProductionJobTicketTemplate()
+    {
+        var template = NotificationBootstrapData.CreateOperationsJobCreatedEmailTemplate();
+
+        Assert.Equal("operations-job-created", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Production job {{jobNumber}} is ready for scheduling", template.SubjectTemplate);
+        Assert.Contains("job ticket", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("jobId", template.Parameters);
+        Assert.Contains("jobNumber", template.Parameters);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("orderItemId", template.Parameters);
+        Assert.Contains("technology", template.Parameters);
+        Assert.Contains("createdAt", template.Parameters);
+    }
+
+    [Fact]
     public void CreateCustomerOrderCompletedEmailTemplate_DefinesUsefulCompletionTemplate()
     {
         var template = NotificationBootstrapData.CreateCustomerOrderCompletedEmailTemplate();
