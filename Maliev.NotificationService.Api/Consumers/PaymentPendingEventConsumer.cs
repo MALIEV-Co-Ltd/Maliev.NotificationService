@@ -31,6 +31,12 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
     public async Task Consume(ConsumeContext<PaymentPendingEvent> context)
     {
         var payload = context.Message.Payload;
+        if (payload is null)
+        {
+            _logger.LogWarning("[NotificationService] PaymentPendingEvent received without payload; skipping");
+            return;
+        }
+
         var eventId = context.Message.MessageId.ToString();
 
         var alreadyReceived = await _dbContext.DeliveryLogs

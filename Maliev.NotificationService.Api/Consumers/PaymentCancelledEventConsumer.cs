@@ -36,6 +36,12 @@ public sealed class PaymentCancelledEventConsumer : IConsumer<PaymentCancelledEv
     public async Task Consume(ConsumeContext<PaymentCancelledEvent> context)
     {
         var payload = context.Message.Payload;
+        if (payload is null)
+        {
+            _logger.LogWarning("[NotificationService] PaymentCancelledEvent received without payload; skipping");
+            return;
+        }
+
         var eventId = context.Message.MessageId.ToString();
 
         if (await HasReceivedEventAsync(eventId, payload.CustomerId, context.CancellationToken))

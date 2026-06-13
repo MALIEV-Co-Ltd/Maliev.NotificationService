@@ -25,6 +25,12 @@ namespace Maliev.NotificationService.Api.Consumers
         public async Task Consume(ConsumeContext<PaymentFailedEvent> context)
         {
             var payload = context.Message.Payload;
+            if (payload is null)
+            {
+                _logger.LogWarning("[NotificationService] PaymentFailedEvent received without payload; skipping");
+                return;
+            }
+
             _logger.LogWarning(
                 "[NotificationService] Received PaymentFailedEvent for Order ID: {OrderId}, Transaction ID: {TransactionId}. Preparing failure notification.",
                 payload.OrderId,
