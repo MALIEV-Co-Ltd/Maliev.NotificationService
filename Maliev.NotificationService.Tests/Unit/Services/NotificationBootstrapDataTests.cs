@@ -179,6 +179,21 @@ public sealed class NotificationBootstrapDataTests
     }
 
     [Fact]
+    public void CreateCustomerDeliveryCompletedEmailTemplate_DefinesDeliveredOrderTemplate()
+    {
+        var template = NotificationBootstrapData.CreateCustomerDeliveryCompletedEmailTemplate();
+
+        Assert.Equal("delivery-completed", template.TemplateKey);
+        Assert.Equal("email", template.ChannelType);
+        Assert.Equal("Your MALIEV delivery {{deliveryNoteId}} is complete", template.SubjectTemplate);
+        Assert.Contains("has been delivered", template.ContentTemplate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orderId", template.Parameters);
+        Assert.Contains("deliveryNoteId", template.Parameters);
+        Assert.Contains("completedAt", template.Parameters);
+        Assert.Contains("receivedByName", template.Parameters);
+    }
+
+    [Fact]
     public void CreateOperationsInboxEmailBinding_EncryptsConfiguredRecipientForStableInboxUser()
     {
         var binding = NotificationBootstrapData.CreateOperationsInboxEmailBinding("encrypted-ops-address");

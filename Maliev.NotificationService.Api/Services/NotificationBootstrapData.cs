@@ -393,6 +393,38 @@ public static class NotificationBootstrapData
     }
 
     /// <summary>
+    /// Creates the email template sent to customers when a delivery is completed.
+    /// </summary>
+    /// <returns>The default customer delivery completed email template.</returns>
+    public static NotificationTemplate CreateCustomerDeliveryCompletedEmailTemplate()
+    {
+        return new NotificationTemplate
+        {
+            TemplateKey = "delivery-completed",
+            DisplayName = "Customer delivery completed",
+            Version = 1,
+            Language = "en",
+            ChannelType = "email",
+            SubjectTemplate = "Your MALIEV delivery {{deliveryNoteId}} is complete",
+            ContentTemplate =
+                "Hello {{name}},\n\n" +
+                "Your MALIEV order {{orderId}} has been delivered.\n\n" +
+                "Delivery note: {{deliveryNoteId}}\n" +
+                "Completed at: {{completedAt}}\n" +
+                "Received by: {{receivedByName}}\n\n" +
+                "Keep this email with your delivery records. Contact MALIEV if anything in the delivery needs review.",
+            Parameters =
+            [
+                "name",
+                "orderId",
+                "deliveryNoteId",
+                "completedAt",
+                "receivedByName"
+            ]
+        };
+    }
+
+    /// <summary>
     /// Creates the email template for Google SSO customer welcome.
     /// </summary>
     /// <returns>The customer welcome Google email template.</returns>
