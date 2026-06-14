@@ -33,6 +33,14 @@ namespace Maliev.NotificationService.Api.Consumers
                 return;
             }
 
+            if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+            {
+                _logger.LogDebug(
+                    "[NotificationService] Skipping PaymentCompletedEvent {MessageId} because it is not routed to NotificationService",
+                    context.Message.MessageId);
+                return;
+            }
+
             _logger.LogInformation(
                 "[NotificationService] Received PaymentCompletedEvent for Order ID: {OrderId}, Payment ID: {PaymentId}. Preparing to send notification.",
                 payload.OrderId,

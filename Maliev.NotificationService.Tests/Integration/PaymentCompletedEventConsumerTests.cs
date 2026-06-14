@@ -181,6 +181,48 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_PaymentCompletedEvent_WhenNotRoutedToNotificationService_ShouldSkipNotificationAndDeliveryLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentCompletedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentCompletedEvent(
+            MessageId: messageId,
+            MessageName: "PaymentCompletedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "InvoiceService", "OrderService" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentCompletedEventPayload(
+                OrderId: Guid.NewGuid(),
+                OrderNumber: "ORD-NOTIFICATION-SKIP",
+                CustomerId: Guid.NewGuid().ToString(),
+                PaymentId: Guid.NewGuid(),
+                Amount: 100,
+                Currency: "USD"));
+
+        var mockContext = new Mock<ConsumeContext<PaymentCompletedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&

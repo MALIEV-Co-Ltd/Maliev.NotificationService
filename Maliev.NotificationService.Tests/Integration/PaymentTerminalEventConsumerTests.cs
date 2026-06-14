@@ -158,6 +158,52 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
     }
 
     [Fact]
+    public async Task Consume_PaymentCancelledEvent_WhenNotRoutedToNotificationService_ShouldSkipNotificationAndDeliveryLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCancelledEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentCancelledEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentCancelledEvent(
+            MessageId: messageId,
+            MessageName: "PaymentCancelledEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "QuoteEngine" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentCancelledEventPayload(
+                TransactionId: Guid.NewGuid(),
+                IdempotencyKey: "idem-cancelled-skip",
+                Amount: 1200,
+                Currency: "THB",
+                CustomerId: Guid.NewGuid().ToString(),
+                OrderId: "ORD-CANCELLED",
+                ProviderName: "omise",
+                Reason: "Customer cancelled checkout",
+                ProviderEventCode: "charge.cancelled",
+                CancelledAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentCancelledEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_PaymentExpiredEvent_ShouldPublishCustomerNotificationAndCreateDeliveryLog()
     {
         await _factory.ResetDatabaseAsync();
@@ -292,6 +338,52 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
     }
 
     [Fact]
+    public async Task Consume_PaymentExpiredEvent_WhenNotRoutedToNotificationService_ShouldSkipNotificationAndDeliveryLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentExpiredEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentExpiredEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentExpiredEvent(
+            MessageId: messageId,
+            MessageName: "PaymentExpiredEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "QuoteEngine" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentExpiredEventPayload(
+                TransactionId: Guid.NewGuid(),
+                IdempotencyKey: "idem-expired-skip",
+                Amount: 990,
+                Currency: "THB",
+                CustomerId: Guid.NewGuid().ToString(),
+                OrderId: "ORD-EXPIRED",
+                ProviderName: "stripe",
+                Reason: "Checkout session expired",
+                ProviderEventCode: "checkout.session.expired",
+                ExpiredAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentExpiredEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_PaymentPendingEvent_ShouldCreateDeliveryLogWithoutCustomerNotification()
     {
         await _factory.ResetDatabaseAsync();
@@ -337,6 +429,47 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.Equal(customerId, logs[0].UserId);
         Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Payment pending", logs[0].MessageContent);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentPendingEvent_WhenNotRoutedToNotificationService_ShouldSkipDeliveryLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentPendingEventConsumer>>();
+        var consumer = new PaymentPendingEventConsumer(logger, context);
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentPendingEvent(
+            MessageId: messageId,
+            MessageName: "PaymentPendingEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "QuoteEngine" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentPendingEventPayload(
+                TransactionId: Guid.NewGuid(),
+                IdempotencyKey: "idem-pending-skip",
+                Amount: 450,
+                Currency: "THB",
+                CustomerId: Guid.NewGuid().ToString(),
+                OrderId: "ORD-PENDING",
+                ProviderName: "omise",
+                ProviderEventCode: "charge.pending",
+                PendingAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentPendingEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
     }
 
     private static bool HasParameter(object parameters, string key, string expectedValue)

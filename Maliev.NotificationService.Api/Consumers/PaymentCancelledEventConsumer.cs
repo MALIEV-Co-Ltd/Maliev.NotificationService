@@ -42,6 +42,14 @@ public sealed class PaymentCancelledEventConsumer : IConsumer<PaymentCancelledEv
             return;
         }
 
+        if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+        {
+            _logger.LogDebug(
+                "[NotificationService] Skipping PaymentCancelledEvent {MessageId} because it is not routed to NotificationService",
+                context.Message.MessageId);
+            return;
+        }
+
         var eventId = context.Message.MessageId.ToString();
 
         var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";

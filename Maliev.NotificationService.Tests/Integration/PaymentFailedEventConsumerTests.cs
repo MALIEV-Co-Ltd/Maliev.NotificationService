@@ -162,6 +162,52 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
             Times.Never);
     }
 
+    [Fact]
+    public async Task Consume_PaymentFailedEvent_WhenNotRoutedToNotificationService_ShouldSkipNotificationAndDeliveryLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentFailedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new PaymentFailedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentFailedEvent(
+            MessageId: messageId,
+            MessageName: "PaymentFailedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "QuoteEngine" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentFailedEventPayload(
+                TransactionId: Guid.NewGuid(),
+                IdempotencyKey: "idem-not-routed",
+                Amount: 250.5,
+                Currency: "THB",
+                CustomerId: Guid.NewGuid().ToString(),
+                OrderId: "ORD-NOTIFICATION-SKIP",
+                ProviderName: "stripe",
+                ErrorMessage: "Card declined",
+                ProviderErrorCode: "card_declined",
+                FailedAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentFailedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&

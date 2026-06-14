@@ -32,6 +32,14 @@ namespace Maliev.NotificationService.Api.Consumers
                 return;
             }
 
+            if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+            {
+                _logger.LogDebug(
+                    "[NotificationService] Skipping PaymentFailedEvent {MessageId} because it is not routed to NotificationService",
+                    context.Message.MessageId);
+                return;
+            }
+
             _logger.LogWarning(
                 "[NotificationService] Received PaymentFailedEvent for Order ID: {OrderId}, Transaction ID: {TransactionId}. Preparing failure notification.",
                 payload.OrderId,

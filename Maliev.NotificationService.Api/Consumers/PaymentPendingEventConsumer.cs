@@ -37,6 +37,14 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
             return;
         }
 
+        if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+        {
+            _logger.LogDebug(
+                "[NotificationService] Skipping PaymentPendingEvent {MessageId} because it is not routed to NotificationService",
+                context.Message.MessageId);
+            return;
+        }
+
         var eventId = context.Message.MessageId.ToString();
 
         var alreadyReceived = await _dbContext.DeliveryLogs
