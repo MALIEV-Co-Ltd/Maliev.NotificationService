@@ -47,13 +47,17 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.PaymentId);
 
             var eventId = context.Message.MessageId.ToString();
-            var paymentRecipientIdentifier = $"payment-{payload.PaymentId}";
+            var legacyPaymentRecipientIdentifier = $"payment-{payload.PaymentId}";
+            var paymentRecipientIdentifier = $"payment-completed-{payload.PaymentId}";
             var alreadyReceived = await _dbContext.DeliveryLogs
                 .AsNoTracking()
                 .AnyAsync(
                     log => log.UserId == payload.CustomerId
                         && log.Status == "received"
-                        && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
+                        && (log.EventId == eventId
+                            || log.RecipientIdentifier == paymentRecipientIdentifier
+                            || (log.RecipientIdentifier == legacyPaymentRecipientIdentifier
+                                && EF.Functions.Like(log.MessageContent, "Payment completed:%"))),
                     context.CancellationToken);
 
             if (alreadyReceived)
