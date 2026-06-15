@@ -45,6 +45,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.OrderId,
                 payload.TransactionId);
 
+            var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
             var eventId = context.Message.MessageId.ToString();
             var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
             var alreadyReceived = await _dbContext.DeliveryLogs
@@ -88,7 +89,7 @@ namespace Maliev.NotificationService.Api.Consumers
                     Parameters: new Dictionary<string, object>
                     {
                         ["name"] = "Customer",
-                        ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                        ["amount"] = formattedAmount,
                         ["reason"] = payload.ErrorMessage,
                         ["transactionId"] = payload.TransactionId.ToString(),
                         ["providerErrorCode"] = payload.ProviderErrorCode
@@ -108,7 +109,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = paymentRecipientIdentifier,
                 Status = "received",
-                MessageContent = $"Payment failed: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}, Reason: {payload.ErrorMessage}",
+                MessageContent = $"Payment failed: Order {payload.OrderId}, Amount {formattedAmount}, Reason: {payload.ErrorMessage}",
                 AttemptNumber = 1,
                 DeliveredAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow,

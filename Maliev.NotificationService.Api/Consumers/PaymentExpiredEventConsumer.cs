@@ -52,6 +52,7 @@ public sealed class PaymentExpiredEventConsumer : IConsumer<PaymentExpiredEvent>
 
         var eventId = context.Message.MessageId.ToString();
 
+        var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
         var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
 
         if (await HasReceivedEventAsync(
@@ -89,7 +90,7 @@ public sealed class PaymentExpiredEventConsumer : IConsumer<PaymentExpiredEvent>
                 Parameters: new Dictionary<string, object>
                 {
                     ["name"] = "Customer",
-                    ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                    ["amount"] = formattedAmount,
                     ["reason"] = payload.Reason,
                     ["transactionId"] = payload.TransactionId.ToString(),
                     ["providerEventCode"] = payload.ProviderEventCode
@@ -104,7 +105,7 @@ public sealed class PaymentExpiredEventConsumer : IConsumer<PaymentExpiredEvent>
             ChannelType = "rabbitmq-event",
             RecipientIdentifier = paymentRecipientIdentifier,
             Status = "received",
-            MessageContent = $"Payment expired: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}, Reason: {payload.Reason}",
+            MessageContent = $"Payment expired: Order {payload.OrderId}, Amount {formattedAmount}, Reason: {payload.Reason}",
             AttemptNumber = 1,
             DeliveredAt = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow,

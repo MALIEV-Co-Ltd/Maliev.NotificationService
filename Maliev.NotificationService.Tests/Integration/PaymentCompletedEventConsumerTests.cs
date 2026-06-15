@@ -12,6 +12,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Maliev.NotificationService.Tests.Testing;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
@@ -179,6 +180,71 @@ public class PaymentCompletedEventConsumerTests : IClassFixture<BaseIntegrationT
                     HasParameter(notificationEvent.Payload.Parameters, "customerId", customerId)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentCompletedEvent_FormatsAmountsWithInvariantCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await _factory.ResetDatabaseAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCompletedEventConsumer>>();
+            var publishEndpoint = new Mock<IPublishEndpoint>();
+            var consumer = new PaymentCompletedEventConsumer(logger, context, publishEndpoint.Object);
+
+            var messageId = Guid.NewGuid();
+            var customerId = Guid.NewGuid().ToString();
+            var paymentId = Guid.NewGuid();
+            var evt = new PaymentCompletedEvent(
+                MessageId: messageId,
+                MessageName: "PaymentCompletedEvent",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "Payment",
+                ConsumedBy: new[] { "Notification" },
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: true,
+                Payload: new PaymentCompletedEventPayload(
+                    OrderId: Guid.NewGuid(),
+                    OrderNumber: "ORD-INVARIANT",
+                    CustomerId: customerId,
+                    PaymentId: paymentId,
+                    Amount: 1000.25,
+                    Currency: "THB"));
+
+            var mockContext = new Mock<ConsumeContext<PaymentCompletedEvent>>();
+            mockContext.Setup(m => m.Message).Returns(evt);
+            mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+            await consumer.Consume(mockContext.Object);
+
+            var log = await context.DeliveryLogs.SingleAsync(l => l.EventId == messageId.ToString());
+            Assert.Contains("Amount 1000.25 THB", log.MessageContent);
+            Assert.DoesNotContain("1000,25", log.MessageContent);
+
+            publishEndpoint.Verify(
+                p => p.Publish(
+                    It.Is<NotificationEvent>(notificationEvent =>
+                        notificationEvent.Payload.NotificationType == "PaymentSuccess" &&
+                        HasParameter(notificationEvent.Payload.Parameters, "amount", "1000.25 THB")),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]

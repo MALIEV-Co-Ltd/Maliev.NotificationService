@@ -46,6 +46,7 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
         }
 
         var eventId = context.Message.MessageId.ToString();
+        var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
 
         var alreadyReceived = await _dbContext.DeliveryLogs
             .AsNoTracking()
@@ -69,7 +70,7 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
             ChannelType = "rabbitmq-event",
             RecipientIdentifier = $"payment-{payload.TransactionId}",
             Status = "received",
-            MessageContent = $"Payment pending: Order {payload.OrderId}, Amount {payload.Amount} {payload.Currency}, Provider event: {payload.ProviderEventCode}",
+            MessageContent = $"Payment pending: Order {payload.OrderId}, Amount {formattedAmount}, Provider event: {payload.ProviderEventCode}",
             AttemptNumber = 1,
             DeliveredAt = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow,

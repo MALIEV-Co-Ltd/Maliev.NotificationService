@@ -46,6 +46,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 payload.OrderId,
                 payload.PaymentId);
 
+            var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
             var eventId = context.Message.MessageId.ToString();
             var legacyPaymentRecipientIdentifier = $"payment-{payload.PaymentId}";
             var paymentRecipientIdentifier = $"payment-completed-{payload.PaymentId}";
@@ -94,7 +95,7 @@ namespace Maliev.NotificationService.Api.Consumers
                     {
                         ["name"] = "Customer",
                         ["orderId"] = payload.OrderNumber,
-                        ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                        ["amount"] = formattedAmount,
                         ["paymentId"] = payload.PaymentId.ToString()
                     },
                     Metadata: new NotificationEventPayloadMetadata(
@@ -129,7 +130,7 @@ namespace Maliev.NotificationService.Api.Consumers
                     Parameters: new Dictionary<string, object>
                     {
                         ["orderId"] = payload.OrderNumber,
-                        ["amount"] = $"{payload.Amount:0.00} {payload.Currency}",
+                        ["amount"] = formattedAmount,
                         ["paymentId"] = payload.PaymentId.ToString(),
                         ["customerId"] = payload.CustomerId
                     },
@@ -149,7 +150,7 @@ namespace Maliev.NotificationService.Api.Consumers
                 ChannelType = "rabbitmq-event",
                 RecipientIdentifier = paymentRecipientIdentifier,
                 Status = "received",
-                MessageContent = $"Payment completed: Order {payload.OrderNumber}, Amount {payload.Amount} {payload.Currency}",
+                MessageContent = $"Payment completed: Order {payload.OrderNumber}, Amount {formattedAmount}",
                 AttemptNumber = 1,
                 DeliveredAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow,

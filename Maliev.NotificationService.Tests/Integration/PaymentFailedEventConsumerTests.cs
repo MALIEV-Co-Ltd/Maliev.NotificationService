@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Globalization;
 using System.Text.Json;
 using Xunit;
 
@@ -93,6 +94,75 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
                     HasParameter(notificationEvent.Payload.Parameters, "providerErrorCode", "card_declined")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentFailedEvent_FormatsAmountsWithInvariantCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await _factory.ResetDatabaseAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentFailedEventConsumer>>();
+            var publishEndpoint = new Mock<IPublishEndpoint>();
+            var consumer = new PaymentFailedEventConsumer(logger, context, publishEndpoint.Object);
+
+            var messageId = Guid.NewGuid();
+            var customerId = Guid.NewGuid().ToString();
+            var transactionId = Guid.NewGuid();
+            var evt = new PaymentFailedEvent(
+                MessageId: messageId,
+                MessageName: "PaymentFailedEvent",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "Payment",
+                ConsumedBy: new[] { "Notification" },
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: true,
+                Payload: new PaymentFailedEventPayload(
+                    TransactionId: transactionId,
+                    IdempotencyKey: "idem-invariant",
+                    Amount: 2500.75,
+                    Currency: "THB",
+                    CustomerId: customerId,
+                    OrderId: "ORD-INVARIANT",
+                    ProviderName: "stripe",
+                    ErrorMessage: "Card declined",
+                    ProviderErrorCode: "card_declined",
+                    FailedAt: DateTimeOffset.UtcNow));
+
+            var mockContext = new Mock<ConsumeContext<PaymentFailedEvent>>();
+            mockContext.Setup(m => m.Message).Returns(evt);
+            mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+            await consumer.Consume(mockContext.Object);
+
+            var log = await context.DeliveryLogs.SingleAsync(l => l.EventId == messageId.ToString());
+            Assert.Contains("Amount 2500.75 THB", log.MessageContent);
+            Assert.DoesNotContain("2500,75", log.MessageContent);
+
+            publishEndpoint.Verify(
+                p => p.Publish(
+                    It.Is<NotificationEvent>(notificationEvent =>
+                        notificationEvent.Payload.NotificationType == "PaymentFailure" &&
+                        HasParameter(notificationEvent.Payload.Parameters, "amount", "2500.75 THB")),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]

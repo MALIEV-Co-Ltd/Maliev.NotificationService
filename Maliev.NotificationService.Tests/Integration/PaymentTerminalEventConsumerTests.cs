@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Maliev.NotificationService.Api.Tests.Integration;
@@ -89,6 +90,75 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
                     HasParameter(notificationEvent.Payload.Parameters, "providerEventCode", "charge.cancelled")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentCancelledEvent_FormatsAmountsWithInvariantCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await _factory.ResetDatabaseAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentCancelledEventConsumer>>();
+            var publishEndpoint = new Mock<IPublishEndpoint>();
+            var consumer = new PaymentCancelledEventConsumer(logger, context, publishEndpoint.Object);
+
+            var messageId = Guid.NewGuid();
+            var customerId = Guid.NewGuid().ToString();
+            var transactionId = Guid.NewGuid();
+            var evt = new PaymentCancelledEvent(
+                MessageId: messageId,
+                MessageName: "PaymentCancelledEvent",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "Payment",
+                ConsumedBy: new[] { "Notification" },
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: true,
+                Payload: new PaymentCancelledEventPayload(
+                    TransactionId: transactionId,
+                    IdempotencyKey: "idem-cancelled-invariant",
+                    Amount: 1200.25,
+                    Currency: "THB",
+                    CustomerId: customerId,
+                    OrderId: "ORD-CANCELLED-INVARIANT",
+                    ProviderName: "omise",
+                    Reason: "Customer cancelled checkout",
+                    ProviderEventCode: "charge.cancelled",
+                    CancelledAt: DateTimeOffset.UtcNow));
+
+            var mockContext = new Mock<ConsumeContext<PaymentCancelledEvent>>();
+            mockContext.Setup(m => m.Message).Returns(evt);
+            mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+            await consumer.Consume(mockContext.Object);
+
+            var log = await context.DeliveryLogs.SingleAsync(l => l.EventId == messageId.ToString());
+            Assert.Contains("Amount 1200.25 THB", log.MessageContent);
+            Assert.DoesNotContain("1200,25", log.MessageContent);
+
+            publishEndpoint.Verify(
+                p => p.Publish(
+                    It.Is<NotificationEvent>(notificationEvent =>
+                        notificationEvent.Payload.NotificationType == "PaymentCancelled" &&
+                        HasParameter(notificationEvent.Payload.Parameters, "amount", "1200.25 THB")),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]
@@ -272,6 +342,75 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
     }
 
     [Fact]
+    public async Task Consume_PaymentExpiredEvent_FormatsAmountsWithInvariantCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await _factory.ResetDatabaseAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentExpiredEventConsumer>>();
+            var publishEndpoint = new Mock<IPublishEndpoint>();
+            var consumer = new PaymentExpiredEventConsumer(logger, context, publishEndpoint.Object);
+
+            var messageId = Guid.NewGuid();
+            var customerId = Guid.NewGuid().ToString();
+            var transactionId = Guid.NewGuid();
+            var evt = new PaymentExpiredEvent(
+                MessageId: messageId,
+                MessageName: "PaymentExpiredEvent",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "Payment",
+                ConsumedBy: new[] { "Notification" },
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: true,
+                Payload: new PaymentExpiredEventPayload(
+                    TransactionId: transactionId,
+                    IdempotencyKey: "idem-expired-invariant",
+                    Amount: 990.50,
+                    Currency: "THB",
+                    CustomerId: customerId,
+                    OrderId: "ORD-EXPIRED-INVARIANT",
+                    ProviderName: "stripe",
+                    Reason: "Checkout session expired",
+                    ProviderEventCode: "checkout.session.expired",
+                    ExpiredAt: DateTimeOffset.UtcNow));
+
+            var mockContext = new Mock<ConsumeContext<PaymentExpiredEvent>>();
+            mockContext.Setup(m => m.Message).Returns(evt);
+            mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+            await consumer.Consume(mockContext.Object);
+
+            var log = await context.DeliveryLogs.SingleAsync(l => l.EventId == messageId.ToString());
+            Assert.Contains("Amount 990.50 THB", log.MessageContent);
+            Assert.DoesNotContain("990,50", log.MessageContent);
+
+            publishEndpoint.Verify(
+                p => p.Publish(
+                    It.Is<NotificationEvent>(notificationEvent =>
+                        notificationEvent.Payload.NotificationType == "PaymentExpired" &&
+                        HasParameter(notificationEvent.Payload.Parameters, "amount", "990.50 THB")),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
+    }
+
+    [Fact]
     public async Task Consume_PaymentExpiredEvent_WhenTransactionAlreadyReceived_ShouldNotPublishDuplicateNotification()
     {
         await _factory.ResetDatabaseAsync();
@@ -429,6 +568,63 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.Equal(customerId, logs[0].UserId);
         Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Payment pending", logs[0].MessageContent);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentPendingEvent_FormatsAuditAmountWithInvariantCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await _factory.ResetDatabaseAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentPendingEventConsumer>>();
+            var consumer = new PaymentPendingEventConsumer(logger, context);
+
+            var messageId = Guid.NewGuid();
+            var evt = new PaymentPendingEvent(
+                MessageId: messageId,
+                MessageName: "PaymentPendingEvent",
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0",
+                PublishedBy: "Payment",
+                ConsumedBy: new[] { "Notification" },
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: true,
+                Payload: new PaymentPendingEventPayload(
+                    TransactionId: Guid.NewGuid(),
+                    IdempotencyKey: "idem-pending-invariant",
+                    Amount: 450.25,
+                    Currency: "THB",
+                    CustomerId: Guid.NewGuid().ToString(),
+                    OrderId: "ORD-PENDING-INVARIANT",
+                    ProviderName: "omise",
+                    ProviderEventCode: "charge.pending",
+                    PendingAt: DateTimeOffset.UtcNow));
+
+            var mockContext = new Mock<ConsumeContext<PaymentPendingEvent>>();
+            mockContext.Setup(m => m.Message).Returns(evt);
+            mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+            await consumer.Consume(mockContext.Object);
+
+            var log = await context.DeliveryLogs.SingleAsync(l => l.EventId == messageId.ToString());
+            Assert.Contains("Amount 450.25 THB", log.MessageContent);
+            Assert.DoesNotContain("450,25", log.MessageContent);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]
