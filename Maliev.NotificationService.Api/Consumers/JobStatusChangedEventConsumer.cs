@@ -27,6 +27,20 @@ namespace Maliev.NotificationService.Api.Consumers
         public async Task Consume(ConsumeContext<JobStatusChangedEvent> context)
         {
             var payload = context.Message.Payload;
+            if (payload is null)
+            {
+                _logger.LogWarning("[NotificationService] JobStatusChangedEvent received without payload; skipping");
+                return;
+            }
+
+            if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+            {
+                _logger.LogDebug(
+                    "[NotificationService] Ignoring untargeted JobStatusChangedEvent for job {JobId}",
+                    payload.JobId);
+                return;
+            }
+
             if (!string.Equals(payload.NewStatus, "Completed", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogDebug(

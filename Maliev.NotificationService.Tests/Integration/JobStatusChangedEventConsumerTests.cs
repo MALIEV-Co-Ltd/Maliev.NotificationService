@@ -92,6 +92,51 @@ public class JobStatusChangedEventConsumerTests : IClassFixture<BaseIntegrationT
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_CompletedJobStatusChangeWithoutNotificationRouting_ShouldNotNotifyOperations()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<JobStatusChangedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new JobStatusChangedEventConsumer(logger, context, publishEndpoint.Object);
+
+        var messageId = Guid.NewGuid();
+        var evt = new JobStatusChangedEvent(
+            MessageId: messageId,
+            MessageName: nameof(JobStatusChangedEvent),
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "job-service",
+            ConsumedBy: ["OrderService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new JobStatusChangedEventPayload(
+                JobId: Guid.NewGuid(),
+                OrderId: Guid.NewGuid(),
+                OrderNumber: "ORD-2026-00043",
+                PreviousStatus: "Finishing",
+                NewStatus: "Completed",
+                Technology: "FDM",
+                AssignedMachineId: "FDM-001",
+                ChangedAt: DateTimeOffset.UtcNow,
+                ChangedBy: "scanner-operator"));
+
+        var mockContext = new Mock<ConsumeContext<JobStatusChangedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&
