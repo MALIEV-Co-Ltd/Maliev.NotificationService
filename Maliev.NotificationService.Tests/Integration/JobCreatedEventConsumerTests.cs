@@ -89,6 +89,54 @@ public class JobCreatedEventConsumerTests : IClassFixture<BaseIntegrationTestFac
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_JobCreatedEvent_WithoutRoutingList_IgnoresEvent()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<JobCreatedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new JobCreatedEventConsumer(logger, context, publishEndpoint.Object);
+        var messageId = Guid.NewGuid();
+        var evt = BuildJobCreatedEvent(messageId) with
+        {
+            ConsumedBy = null!
+        };
+        var mockContext = BuildConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Consume_JobCreatedEvent_WithoutNotificationServiceRouting_IgnoresEvent()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<JobCreatedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new JobCreatedEventConsumer(logger, context, publishEndpoint.Object);
+        var messageId = Guid.NewGuid();
+        var evt = BuildJobCreatedEvent(messageId) with
+        {
+            ConsumedBy = ["MaterialService", "AuditService"]
+        };
+        var mockContext = BuildConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&
@@ -98,5 +146,36 @@ public class JobCreatedEventConsumerTests : IClassFixture<BaseIntegrationTestFac
         }
 
         return false;
+    }
+
+    private static Mock<ConsumeContext<JobCreatedEvent>> BuildConsumeContext(JobCreatedEvent evt)
+    {
+        var mockContext = new Mock<ConsumeContext<JobCreatedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        return mockContext;
+    }
+
+    private static JobCreatedEvent BuildJobCreatedEvent(Guid messageId)
+    {
+        var jobId = Guid.NewGuid();
+        return new JobCreatedEvent(
+            MessageId: messageId,
+            MessageName: nameof(JobCreatedEvent),
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "job-service",
+            ConsumedBy: ["NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new JobCreatedEventPayload(
+                JobId: jobId,
+                OrderId: Guid.NewGuid(),
+                OrderItemId: Guid.NewGuid(),
+                ProcessType: "SLS",
+                JobNumber: "JOB-2026-00042",
+                CreatedAt: DateTimeOffset.UtcNow));
     }
 }

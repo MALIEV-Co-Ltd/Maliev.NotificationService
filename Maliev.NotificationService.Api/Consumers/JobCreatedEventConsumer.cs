@@ -133,8 +133,8 @@ namespace Maliev.NotificationService.Api.Consumers
 
         private static bool IsRoutedToNotificationService(JobCreatedEvent message)
         {
-            return message.ConsumedBy.Any(
-                consumer => consumer.Equals("NotificationService", StringComparison.OrdinalIgnoreCase));
+            return message.ConsumedBy?.Any(
+                consumer => consumer.Equals("NotificationService", StringComparison.OrdinalIgnoreCase)) == true;
         }
     }
 }
