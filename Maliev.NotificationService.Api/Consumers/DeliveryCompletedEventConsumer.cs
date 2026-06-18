@@ -27,12 +27,12 @@ namespace Maliev.NotificationService.Api.Consumers
 
         public async Task Consume(ConsumeContext<DeliveryCompletedEvent> context)
         {
-            if (!IsRoutedToNotificationService(context.Message.ConsumedBy))
+            if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
             {
                 _logger.LogDebug(
                     "[NotificationService] Ignoring DeliveryCompletedEvent {MessageId} for consumers {ConsumedBy}",
                     context.Message.MessageId,
-                    string.Join(",", context.Message.ConsumedBy));
+                    FormatConsumedBy(context.Message.ConsumedBy));
                 return;
             }
 
@@ -123,10 +123,9 @@ namespace Maliev.NotificationService.Api.Consumers
                 context.Message.MessageId);
         }
 
-        private static bool IsRoutedToNotificationService(IReadOnlyList<string> consumedBy)
+        private static string FormatConsumedBy(IReadOnlyList<string>? consumedBy)
         {
-            return consumedBy.Any(consumer =>
-                string.Equals(consumer, ServiceName, StringComparison.OrdinalIgnoreCase));
+            return consumedBy is null ? "<none>" : string.Join(",", consumedBy);
         }
     }
 }

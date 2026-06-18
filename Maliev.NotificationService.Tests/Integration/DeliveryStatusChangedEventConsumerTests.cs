@@ -126,6 +126,29 @@ public class DeliveryStatusChangedEventConsumerTests : IClassFixture<BaseIntegra
     }
 
     [Fact]
+    public async Task Consume_DeliveryStatusChangedEvent_WithoutRoutingList_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<DeliveryStatusChangedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new DeliveryStatusChangedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow) with
+        {
+            ConsumedBy = null!
+        };
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_DeliveryStatusChangedEvent_WhenDelivered_ShouldNotDuplicateDeliveryCompletedNotification()
     {
         await _factory.ResetDatabaseAsync();

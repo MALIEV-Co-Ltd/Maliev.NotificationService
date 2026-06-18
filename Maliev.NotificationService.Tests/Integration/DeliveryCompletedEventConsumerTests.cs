@@ -125,6 +125,29 @@ public class DeliveryCompletedEventConsumerTests : IClassFixture<BaseIntegration
             Times.Never);
     }
 
+    [Fact]
+    public async Task Consume_DeliveryCompletedEvent_WithoutRoutingList_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<DeliveryCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new DeliveryCompletedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow) with
+        {
+            ConsumedBy = null!
+        };
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static DeliveryCompletedEvent CreateEvent(
         Guid messageId,
         Guid customerId,
