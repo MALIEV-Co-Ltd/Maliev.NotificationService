@@ -26,6 +26,12 @@ namespace Maliev.NotificationService.Api.Consumers
         public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
         {
             var payload = context.Message.Payload;
+            if (payload is null)
+            {
+                _logger.LogWarning("[NotificationService] OrderCompletedEvent {MessageId} received without payload; skipping", context.Message.MessageId);
+                return;
+            }
+
             if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
             {
                 _logger.LogDebug(

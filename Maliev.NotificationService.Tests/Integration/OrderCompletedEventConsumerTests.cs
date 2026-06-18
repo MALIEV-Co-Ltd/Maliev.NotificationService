@@ -198,6 +198,29 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
             Times.Never);
     }
 
+    [Fact]
+    public async Task Consume_OrderCompletedEvent_WithoutPayload_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new OrderCompletedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), "ORD-COMP-NOPAYLOAD", jobSucceeded: true) with
+        {
+            Payload = null!
+        };
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&
