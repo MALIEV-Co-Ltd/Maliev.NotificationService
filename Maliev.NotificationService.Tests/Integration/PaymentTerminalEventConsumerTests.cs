@@ -668,6 +668,67 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.False(await context.DeliveryLogs.AnyAsync(l => l.EventId == messageId.ToString()));
     }
 
+    [Fact]
+    public async Task Consume_PaymentPendingEvent_WhenTransactionAlreadyReceived_ShouldSkipDuplicateAuditLog()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentPendingEventConsumer>>();
+        var consumer = new PaymentPendingEventConsumer(logger, context);
+
+        var customerId = Guid.NewGuid().ToString();
+        var transactionId = Guid.NewGuid();
+        context.DeliveryLogs.Add(new DeliveryLog
+        {
+            EventId = Guid.NewGuid().ToString(),
+            UserId = customerId,
+            ChannelType = "rabbitmq-event",
+            RecipientIdentifier = $"payment-{transactionId}",
+            Status = "received",
+            MessageContent = "Payment pending: Order ORD-PENDING, Amount 450.00 THB, Provider event: charge.pending",
+            AttemptNumber = 1,
+            DeliveredAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var messageId = Guid.NewGuid();
+        var evt = new PaymentPendingEvent(
+            MessageId: messageId,
+            MessageName: "PaymentPendingEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentPendingEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-pending-duplicate",
+                Amount: 450,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-PENDING",
+                ProviderName: "omise",
+                ProviderEventCode: "charge.pending",
+                PendingAt: DateTimeOffset.UtcNow));
+
+        var mockContext = new Mock<ConsumeContext<PaymentPendingEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(mockContext.Object);
+
+        var logs = await context.DeliveryLogs
+            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .ToListAsync();
+        Assert.Single(logs);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&

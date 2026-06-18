@@ -47,11 +47,14 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
 
         var eventId = context.Message.MessageId.ToString();
         var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
+        var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
 
         var alreadyReceived = await _dbContext.DeliveryLogs
             .AsNoTracking()
             .AnyAsync(
-                log => log.EventId == eventId && log.UserId == payload.CustomerId,
+                log => log.UserId == payload.CustomerId
+                    && log.Status == "received"
+                    && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
                 context.CancellationToken);
 
         if (alreadyReceived)
@@ -68,7 +71,7 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
             EventId = eventId,
             UserId = payload.CustomerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{payload.TransactionId}",
+            RecipientIdentifier = paymentRecipientIdentifier,
             Status = "received",
             MessageContent = $"Payment pending: Order {payload.OrderId}, Amount {formattedAmount}, Provider event: {payload.ProviderEventCode}",
             AttemptNumber = 1,
