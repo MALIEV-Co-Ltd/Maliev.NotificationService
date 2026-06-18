@@ -52,31 +52,8 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         });
         await context.SaveChangesAsync();
 
-        var evt = new OrderShippedEvent(
-            MessageId: messageId,
-            MessageName: "OrderShippedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderShippedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-SHIP-DUP",
-                CustomerId: customerId,
-                ShippedAt: DateTimeOffset.UtcNow,
-                TrackingNumber: "TH123456789",
-                Carrier: "Thailand Post",
-                EstimatedDeliveryDate: DateTimeOffset.UtcNow.AddDays(3)
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(messageId, customerId, "ORD-SHIP-DUP");
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -103,31 +80,8 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
 
         var messageId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
-        var evt = new OrderShippedEvent(
-            MessageId: messageId,
-            MessageName: "OrderShippedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderShippedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-SHIP-001",
-                CustomerId: customerId,
-                ShippedAt: DateTimeOffset.UtcNow,
-                TrackingNumber: "TH123456789",
-                Carrier: "Thailand Post",
-                EstimatedDeliveryDate: DateTimeOffset.UtcNow.AddDays(3)
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(messageId, customerId, "ORD-SHIP-001");
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -172,31 +126,14 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
 
         var messageId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
-        var evt = new OrderShippedEvent(
-            MessageId: messageId,
-            MessageName: "OrderShippedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderShippedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-SHIP-002",
-                CustomerId: customerId,
-                ShippedAt: DateTimeOffset.UtcNow,
-                TrackingNumber: null,
-                Carrier: null,
-                EstimatedDeliveryDate: null
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(
+            messageId,
+            customerId,
+            "ORD-SHIP-002",
+            trackingNumber: null,
+            carrier: null,
+            estimatedDeliveryDate: null);
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -216,6 +153,49 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_OrderShippedEvent_WhenNotRoutedToNotificationService_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderShippedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new OrderShippedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), "ORD-SHIP-UNTARGETED", consumedBy: ["BillingService"]);
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Consume_OrderShippedEvent_WithoutRoutingList_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderShippedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new OrderShippedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), "ORD-SHIP-NOROUTE") with
+        {
+            ConsumedBy = null!
+        };
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&
@@ -228,5 +208,43 @@ public class OrderShippedEventConsumerTests : IClassFixture<BaseIntegrationTestF
         using var document = JsonDocument.Parse(json);
         return document.RootElement.TryGetProperty(key, out var property) &&
             string.Equals(property.ToString(), expectedValue, StringComparison.Ordinal);
+    }
+
+    private static Mock<ConsumeContext<OrderShippedEvent>> CreateConsumeContext(OrderShippedEvent evt)
+    {
+        var mockContext = new Mock<ConsumeContext<OrderShippedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        return mockContext;
+    }
+
+    private static OrderShippedEvent CreateEvent(
+        Guid messageId,
+        Guid customerId,
+        string orderNumber,
+        IReadOnlyList<string>? consumedBy = null,
+        string? trackingNumber = "TH123456789",
+        string? carrier = "Thailand Post",
+        DateTimeOffset? estimatedDeliveryDate = null)
+    {
+        return new OrderShippedEvent(
+            MessageId: messageId,
+            MessageName: "OrderShippedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Order",
+            ConsumedBy: consumedBy ?? ["Notification"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new OrderShippedEventPayload(
+                OrderId: Guid.NewGuid(),
+                OrderNumber: orderNumber,
+                CustomerId: customerId,
+                ShippedAt: DateTimeOffset.UtcNow,
+                TrackingNumber: trackingNumber,
+                Carrier: carrier,
+                EstimatedDeliveryDate: estimatedDeliveryDate ?? DateTimeOffset.UtcNow.AddDays(3)));
     }
 }

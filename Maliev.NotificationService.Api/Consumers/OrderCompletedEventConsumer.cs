@@ -26,6 +26,15 @@ namespace Maliev.NotificationService.Api.Consumers
         public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
         {
             var payload = context.Message.Payload;
+            if (!NotificationConsumerRouting.IsRoutedToNotificationService(context.Message.ConsumedBy))
+            {
+                _logger.LogDebug(
+                    "[NotificationService] Ignoring OrderCompletedEvent {MessageId} for consumers {ConsumedBy}",
+                    context.Message.MessageId,
+                    FormatConsumedBy(context.Message.ConsumedBy));
+                return;
+            }
+
             _logger.LogInformation(
                 "[NotificationService] Received OrderCompletedEvent for Order {OrderNumber}, JobSucceeded: {JobSucceeded}",
                 payload.OrderNumber,
@@ -106,6 +115,11 @@ namespace Maliev.NotificationService.Api.Consumers
                 "[NotificationService] Published customer notification and created delivery log {DeliveryLogId} for OrderCompletedEvent {MessageId}",
                 deliveryLog.Id,
                 context.Message.MessageId);
+        }
+
+        private static string FormatConsumedBy(IReadOnlyList<string>? consumedBy)
+        {
+            return consumedBy is null ? "<none>" : string.Join(",", consumedBy);
         }
     }
 }

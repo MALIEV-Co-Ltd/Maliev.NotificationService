@@ -52,37 +52,8 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         });
         await context.SaveChangesAsync();
 
-        var evt = new OrderCompletedEvent(
-            MessageId: messageId,
-            MessageName: "OrderCompletedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderCompletedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-COMP-DUP",
-                CustomerId: customerId,
-                QuotationId: Guid.NewGuid(),
-                OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-7),
-                CompletedAt: DateTimeOffset.UtcNow,
-                CompletedBy: Guid.NewGuid(),
-                JobSucceeded: true,
-                ActualMaterialUsedCm3: 125.5,
-                ActualPrintTimeHours: 4.2,
-                ActualLaborHours: 1.5,
-                ActualTotalCost: 850.00,
-                Items: Array.Empty<OrderCompletedEventPayloadItemsItem>()
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(messageId, customerId, "ORD-COMP-DUP", jobSucceeded: true);
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -109,37 +80,8 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
 
         var messageId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
-        var evt = new OrderCompletedEvent(
-            MessageId: messageId,
-            MessageName: "OrderCompletedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderCompletedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-COMP-001",
-                CustomerId: customerId,
-                QuotationId: Guid.NewGuid(),
-                OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-7),
-                CompletedAt: DateTimeOffset.UtcNow,
-                CompletedBy: Guid.NewGuid(),
-                JobSucceeded: true,
-                ActualMaterialUsedCm3: 125.5,
-                ActualPrintTimeHours: 4.2,
-                ActualLaborHours: 1.5,
-                ActualTotalCost: 850.00,
-                Items: Array.Empty<OrderCompletedEventPayloadItemsItem>()
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(messageId, customerId, "ORD-COMP-001", jobSucceeded: true);
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -184,37 +126,8 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
 
         var messageId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
-        var evt = new OrderCompletedEvent(
-            MessageId: messageId,
-            MessageName: "OrderCompletedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0",
-            PublishedBy: "Order",
-            ConsumedBy: new[] { "Notification" },
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: true,
-            Payload: new OrderCompletedEventPayload(
-                OrderId: Guid.NewGuid(),
-                OrderNumber: "ORD-COMP-002",
-                CustomerId: customerId,
-                QuotationId: Guid.NewGuid(),
-                OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-14),
-                CompletedAt: DateTimeOffset.UtcNow,
-                CompletedBy: Guid.NewGuid(),
-                JobSucceeded: false,
-                ActualMaterialUsedCm3: null,
-                ActualPrintTimeHours: null,
-                ActualLaborHours: null,
-                ActualTotalCost: null,
-                Items: Array.Empty<OrderCompletedEventPayloadItemsItem>()
-            )
-        );
-
-        var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
-        mockContext.Setup(m => m.Message).Returns(evt);
-        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        var evt = CreateEvent(messageId, customerId, "ORD-COMP-002", jobSucceeded: false);
+        var mockContext = CreateConsumeContext(evt);
 
         // Act
         await consumer.Consume(mockContext.Object);
@@ -237,6 +150,54 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
             Times.Once);
     }
 
+    [Fact]
+    public async Task Consume_OrderCompletedEvent_WhenNotRoutedToNotificationService_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new OrderCompletedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "ORD-COMP-UNTARGETED",
+            jobSucceeded: true,
+            consumedBy: ["BillingService"]);
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Consume_OrderCompletedEvent_WithoutRoutingList_ShouldIgnore()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderCompletedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var consumer = new OrderCompletedEventConsumer(logger, context, publishEndpoint.Object);
+        var evt = CreateEvent(Guid.NewGuid(), Guid.NewGuid(), "ORD-COMP-NOROUTE", jobSucceeded: true) with
+        {
+            ConsumedBy = null!
+        };
+        var mockContext = CreateConsumeContext(evt);
+
+        await consumer.Consume(mockContext.Object);
+
+        Assert.Empty(await context.DeliveryLogs.ToListAsync());
+        publishEndpoint.Verify(
+            p => p.Publish(It.IsAny<NotificationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static bool HasParameter(object parameters, string key, string expectedValue)
     {
         if (parameters is IReadOnlyDictionary<string, object> dictionary &&
@@ -249,5 +210,47 @@ public class OrderCompletedEventConsumerTests : IClassFixture<BaseIntegrationTes
         using var document = JsonDocument.Parse(json);
         return document.RootElement.TryGetProperty(key, out var property) &&
             string.Equals(property.ToString(), expectedValue, StringComparison.Ordinal);
+    }
+
+    private static Mock<ConsumeContext<OrderCompletedEvent>> CreateConsumeContext(OrderCompletedEvent evt)
+    {
+        var mockContext = new Mock<ConsumeContext<OrderCompletedEvent>>();
+        mockContext.Setup(m => m.Message).Returns(evt);
+        mockContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+        return mockContext;
+    }
+
+    private static OrderCompletedEvent CreateEvent(
+        Guid messageId,
+        Guid customerId,
+        string orderNumber,
+        bool jobSucceeded,
+        IReadOnlyList<string>? consumedBy = null)
+    {
+        return new OrderCompletedEvent(
+            MessageId: messageId,
+            MessageName: "OrderCompletedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Order",
+            ConsumedBy: consumedBy ?? ["Notification"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new OrderCompletedEventPayload(
+                OrderId: Guid.NewGuid(),
+                OrderNumber: orderNumber,
+                CustomerId: customerId,
+                QuotationId: Guid.NewGuid(),
+                OrderCreatedAt: DateTimeOffset.UtcNow.AddDays(-7),
+                CompletedAt: DateTimeOffset.UtcNow,
+                CompletedBy: Guid.NewGuid(),
+                JobSucceeded: jobSucceeded,
+                ActualMaterialUsedCm3: jobSucceeded ? 125.5 : null,
+                ActualPrintTimeHours: jobSucceeded ? 4.2 : null,
+                ActualLaborHours: jobSucceeded ? 1.5 : null,
+                ActualTotalCost: jobSucceeded ? 850.00 : null,
+                Items: Array.Empty<OrderCompletedEventPayloadItemsItem>()));
     }
 }
