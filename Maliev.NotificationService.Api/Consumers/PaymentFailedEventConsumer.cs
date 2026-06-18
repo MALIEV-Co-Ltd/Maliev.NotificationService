@@ -47,13 +47,17 @@ namespace Maliev.NotificationService.Api.Consumers
 
             var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
             var eventId = context.Message.MessageId.ToString();
-            var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+            var legacyPaymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+            var paymentRecipientIdentifier = $"payment-failed-{payload.TransactionId}";
             var alreadyReceived = await _dbContext.DeliveryLogs
                 .AsNoTracking()
                 .AnyAsync(
                     log => log.UserId == payload.CustomerId
                         && log.Status == "received"
-                        && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
+                        && (log.EventId == eventId
+                            || log.RecipientIdentifier == paymentRecipientIdentifier
+                            || (log.RecipientIdentifier == legacyPaymentRecipientIdentifier
+                                && EF.Functions.Like(log.MessageContent, "Payment failed:%"))),
                     context.CancellationToken);
 
             if (alreadyReceived)

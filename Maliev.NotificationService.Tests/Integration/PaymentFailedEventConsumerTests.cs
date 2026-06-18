@@ -74,7 +74,7 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal(customerId, logs[0].UserId);
-        Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
+        Assert.Equal($"payment-failed-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Card declined", logs[0].MessageContent);
 
         publishEndpoint.Verify(
@@ -183,7 +183,7 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
             EventId = Guid.NewGuid().ToString(),
             UserId = customerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{transactionId}",
+            RecipientIdentifier = $"payment-failed-{transactionId}",
             Status = "received",
             MessageContent = "Payment failed: Order ORD-FAILED, Amount 250.5 THB, Reason: Card declined",
             AttemptNumber = 1,
@@ -224,7 +224,7 @@ public class PaymentFailedEventConsumerTests : IClassFixture<BaseIntegrationTest
         await consumer.Consume(mockContext.Object);
 
         var logs = await context.DeliveryLogs
-            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .Where(l => l.RecipientIdentifier == $"payment-failed-{transactionId}")
             .ToListAsync();
         Assert.Single(logs);
         publishEndpoint.Verify(

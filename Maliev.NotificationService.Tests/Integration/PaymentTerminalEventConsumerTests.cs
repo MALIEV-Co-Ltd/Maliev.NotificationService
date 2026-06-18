@@ -70,7 +70,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal(customerId, logs[0].UserId);
-        Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
+        Assert.Equal($"payment-cancelled-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Customer cancelled checkout", logs[0].MessageContent);
 
         publishEndpoint.Verify(
@@ -178,7 +178,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
             EventId = Guid.NewGuid().ToString(),
             UserId = customerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{transactionId}",
+            RecipientIdentifier = $"payment-cancelled-{transactionId}",
             Status = "received",
             MessageContent = "Payment cancelled: Order ORD-CANCELLED, Amount 1200 THB, Reason: Customer cancelled checkout",
             AttemptNumber = 1,
@@ -219,7 +219,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         await consumer.Consume(mockContext.Object);
 
         var logs = await context.DeliveryLogs
-            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .Where(l => l.RecipientIdentifier == $"payment-cancelled-{transactionId}")
             .ToListAsync();
         Assert.Single(logs);
         publishEndpoint.Verify(
@@ -319,7 +319,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal(customerId, logs[0].UserId);
-        Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
+        Assert.Equal($"payment-expired-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Checkout session expired", logs[0].MessageContent);
 
         publishEndpoint.Verify(
@@ -427,7 +427,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
             EventId = Guid.NewGuid().ToString(),
             UserId = customerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{transactionId}",
+            RecipientIdentifier = $"payment-expired-{transactionId}",
             Status = "received",
             MessageContent = "Payment expired: Order ORD-EXPIRED, Amount 990 THB, Reason: Checkout session expired",
             AttemptNumber = 1,
@@ -468,7 +468,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         await consumer.Consume(mockContext.Object);
 
         var logs = await context.DeliveryLogs
-            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .Where(l => l.RecipientIdentifier == $"payment-expired-{transactionId}")
             .ToListAsync();
         Assert.Single(logs);
         publishEndpoint.Verify(
@@ -566,7 +566,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         Assert.Single(logs);
         Assert.Equal("received", logs[0].Status);
         Assert.Equal(customerId, logs[0].UserId);
-        Assert.Equal($"payment-{transactionId}", logs[0].RecipientIdentifier);
+        Assert.Equal($"payment-pending-{transactionId}", logs[0].RecipientIdentifier);
         Assert.Contains("Payment pending", logs[0].MessageContent);
     }
 
@@ -684,7 +684,7 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
             EventId = Guid.NewGuid().ToString(),
             UserId = customerId,
             ChannelType = "rabbitmq-event",
-            RecipientIdentifier = $"payment-{transactionId}",
+            RecipientIdentifier = $"payment-pending-{transactionId}",
             Status = "received",
             MessageContent = "Payment pending: Order ORD-PENDING, Amount 450.00 THB, Provider event: charge.pending",
             AttemptNumber = 1,
@@ -724,9 +724,102 @@ public class PaymentTerminalEventConsumerTests : IClassFixture<BaseIntegrationTe
         await consumer.Consume(mockContext.Object);
 
         var logs = await context.DeliveryLogs
-            .Where(l => l.RecipientIdentifier == $"payment-{transactionId}")
+            .Where(l => l.RecipientIdentifier == $"payment-pending-{transactionId}")
             .ToListAsync();
         Assert.Single(logs);
+    }
+
+    [Fact]
+    public async Task Consume_PaymentFailedEvent_AfterPendingAudit_ShouldStillPublishCustomerNotification()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var pendingLogger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentPendingEventConsumer>>();
+        var failedLogger = scope.ServiceProvider.GetRequiredService<ILogger<PaymentFailedEventConsumer>>();
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var pendingConsumer = new PaymentPendingEventConsumer(pendingLogger, context);
+        var failedConsumer = new PaymentFailedEventConsumer(failedLogger, context, publishEndpoint.Object);
+
+        var customerId = Guid.NewGuid().ToString();
+        var transactionId = Guid.NewGuid();
+        var pendingMessageId = Guid.NewGuid();
+        var failedMessageId = Guid.NewGuid();
+
+        var pendingEvent = new PaymentPendingEvent(
+            MessageId: pendingMessageId,
+            MessageName: "PaymentPendingEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentPendingEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-pending-before-fail",
+                Amount: 450,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-PENDING-FAIL",
+                ProviderName: "omise",
+                ProviderEventCode: "charge.pending",
+                PendingAt: DateTimeOffset.UtcNow));
+
+        var pendingContext = new Mock<ConsumeContext<PaymentPendingEvent>>();
+        pendingContext.Setup(m => m.Message).Returns(pendingEvent);
+        pendingContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await pendingConsumer.Consume(pendingContext.Object);
+
+        var failedEvent = new PaymentFailedEvent(
+            MessageId: failedMessageId,
+            MessageName: "PaymentFailedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0",
+            PublishedBy: "Payment",
+            ConsumedBy: new[] { "Notification" },
+            CorrelationId: pendingEvent.CorrelationId,
+            CausationId: pendingMessageId,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: true,
+            Payload: new PaymentFailedEventPayload(
+                TransactionId: transactionId,
+                IdempotencyKey: "idem-pending-before-fail",
+                Amount: 450,
+                Currency: "THB",
+                CustomerId: customerId,
+                OrderId: "ORD-PENDING-FAIL",
+                ProviderName: "omise",
+                ErrorMessage: "Authorization declined",
+                ProviderErrorCode: "charge.failed",
+                FailedAt: DateTimeOffset.UtcNow));
+
+        var failedContext = new Mock<ConsumeContext<PaymentFailedEvent>>();
+        failedContext.Setup(m => m.Message).Returns(failedEvent);
+        failedContext.Setup(m => m.CancellationToken).Returns(CancellationToken.None);
+
+        await failedConsumer.Consume(failedContext.Object);
+
+        var logs = await context.DeliveryLogs
+            .Where(l => l.UserId == customerId)
+            .OrderBy(l => l.CreatedAt)
+            .ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.Contains(logs, log => log.EventId == pendingMessageId.ToString() && log.MessageContent!.StartsWith("Payment pending:", StringComparison.Ordinal));
+        Assert.Contains(logs, log => log.EventId == failedMessageId.ToString() && log.MessageContent!.StartsWith("Payment failed:", StringComparison.Ordinal));
+
+        publishEndpoint.Verify(
+            p => p.Publish(
+                It.Is<NotificationEvent>(notificationEvent =>
+                    notificationEvent.CausationId == failedMessageId &&
+                    notificationEvent.Payload!.NotificationType == "PaymentFailure" &&
+                    notificationEvent.Payload.TargetUsers.Count == 1 &&
+                    notificationEvent.Payload.TargetUsers[0].UserId == customerId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     private static bool HasParameter(object parameters, string key, string expectedValue)

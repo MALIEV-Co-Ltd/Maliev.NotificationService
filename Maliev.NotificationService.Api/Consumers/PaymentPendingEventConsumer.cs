@@ -47,14 +47,18 @@ public sealed class PaymentPendingEventConsumer : IConsumer<PaymentPendingEvent>
 
         var eventId = context.Message.MessageId.ToString();
         var formattedAmount = PaymentNotificationFormatting.FormatAmount(payload.Amount, payload.Currency);
-        var paymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+        var legacyPaymentRecipientIdentifier = $"payment-{payload.TransactionId}";
+        var paymentRecipientIdentifier = $"payment-pending-{payload.TransactionId}";
 
         var alreadyReceived = await _dbContext.DeliveryLogs
             .AsNoTracking()
             .AnyAsync(
                 log => log.UserId == payload.CustomerId
                     && log.Status == "received"
-                    && (log.EventId == eventId || log.RecipientIdentifier == paymentRecipientIdentifier),
+                    && (log.EventId == eventId
+                        || log.RecipientIdentifier == paymentRecipientIdentifier
+                        || (log.RecipientIdentifier == legacyPaymentRecipientIdentifier
+                            && EF.Functions.Like(log.MessageContent, "Payment pending:%"))),
                 context.CancellationToken);
 
         if (alreadyReceived)
