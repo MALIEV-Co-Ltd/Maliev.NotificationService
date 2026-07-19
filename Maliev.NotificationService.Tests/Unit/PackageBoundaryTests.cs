@@ -22,7 +22,10 @@ public sealed class PackageBoundaryTests
             "Maliev.NotificationService.Infrastructure.csproj"));
 
         Assert.DoesNotContain("Microsoft.EntityFrameworkCore.Design", apiProject, StringComparison.Ordinal);
-        Assert.Contains("Asp.Versioning.Http", apiProject, StringComparison.Ordinal);
+        Assert.Contains(
+            "<PackageReference Include=\"Asp.Versioning.Http\" Version=\"10.0.0\" />",
+            apiProject,
+            StringComparison.Ordinal);
         Assert.Contains("Microsoft.EntityFrameworkCore.Design", infrastructureProject, StringComparison.Ordinal);
     }
 
