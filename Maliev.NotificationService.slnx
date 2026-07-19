@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Maliev.NotificationService.Api/Maliev.NotificationService.Api.csproj" />
+  <Project Path="Maliev.NotificationService.Application/Maliev.NotificationService.Application.csproj" />
+  <Project Path="Maliev.NotificationService.Domain/Maliev.NotificationService.Domain.csproj" />
+  <Project Path="Maliev.NotificationService.Infrastructure/Maliev.NotificationService.Infrastructure.csproj" />
+  <Project Path="Maliev.NotificationService.Tests/Maliev.NotificationService.Tests.csproj" />
+</Solution>
