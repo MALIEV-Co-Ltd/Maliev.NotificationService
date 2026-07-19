@@ -72,7 +72,7 @@ public class TemplatesController : ControllerBase
             template.TemplateKey, template.Version, template.Language, template.ChannelType);
 
         var response = template.ToResponse();
-        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+        var apiVersion = HttpContext.RequestedApiVersion?.ToString() ?? "1.0";
         return CreatedAtAction(nameof(GetTemplate), new { id = template.Id, version = apiVersion }, response);
     }
 

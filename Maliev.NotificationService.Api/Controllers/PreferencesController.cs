@@ -77,7 +77,7 @@ public class PreferencesController : ControllerBase
         _logger.LogInformation("Created preferences for user: {UserId}", request.UserId);
 
         var response = preference.ToResponse();
-        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+        var apiVersion = HttpContext.RequestedApiVersion?.ToString() ?? "1.0";
         return CreatedAtAction(
             nameof(GetPreferences),
             new { userId = preference.UserId, version = apiVersion },

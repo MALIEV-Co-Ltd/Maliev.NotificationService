@@ -91,7 +91,7 @@ public class ChannelBindingsController : ControllerBase
             request.ChannelType);
 
         var response = binding.ToResponse(_encryptionService);
-        var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+        var apiVersion = HttpContext.RequestedApiVersion?.ToString() ?? "1.0";
         return CreatedAtAction(
             nameof(GetChannelBinding),
             new { id = binding.Id, version = apiVersion },
